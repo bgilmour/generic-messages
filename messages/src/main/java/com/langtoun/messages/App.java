@@ -15,7 +15,7 @@ import com.langtoun.messages.types.SimpleCar;
 public class App {
 
   public static void main(String[] args) {
-    System.out.println("com.langtoun.messages.App");
+    System.out.println("Running com.langtoun.messages.App ...");
     SimpleCar car1 = new SimpleCar("Blue", "Mazda");
     ComplexCar car2 = new ComplexCar("Blue", "Mazda", new CarEngine(4, "petrol"));
     Message<SimpleCar> message1 = Message.newMessage(car1);

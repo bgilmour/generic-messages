@@ -1,6 +1,8 @@
-package com.langtoun.messages.generic;
+package com.langtoun.messages.types;
 
 import java.util.List;
+
+import com.langtoun.messages.properties.MessageProperty;
 
 public interface SerializablePayload {
 

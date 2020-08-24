@@ -1,13 +1,12 @@
 package com.langtoun.messages.types;
 
-import static com.langtoun.messages.generic.ScalarProperty.newScalarProperty;
+import static com.langtoun.messages.properties.ScalarProperty.newScalarProperty;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import com.langtoun.messages.generic.MessageProperty;
-import com.langtoun.messages.generic.SerializablePayload;
+import com.langtoun.messages.properties.MessageProperty;
 
 public class CarEngine implements SerializablePayload {
 

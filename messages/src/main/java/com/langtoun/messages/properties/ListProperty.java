@@ -1,4 +1,4 @@
-package com.langtoun.messages.generic;
+package com.langtoun.messages.properties;
 
 import java.util.List;
 import java.util.function.Consumer;

@@ -1,4 +1,4 @@
-package com.langtoun.messages.generic;
+package com.langtoun.messages.properties;
 
 public class MessageProperty {
 
