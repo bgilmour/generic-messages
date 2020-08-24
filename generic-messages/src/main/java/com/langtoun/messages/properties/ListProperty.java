@@ -11,16 +11,16 @@ public class ListProperty extends MessageProperty {
 
   private final Class<?> itemType;
 
-  protected ListProperty(String name, String jsonName, String xmlName, boolean required, Supplier<List<Object>> getter,
-      Consumer<List<Object>> setter, Class<?> valueType, Class<?> itemType) {
+  protected ListProperty(final String name, final String jsonName, final String xmlName, final boolean required, final Supplier<List<Object>> getter,
+      final Consumer<List<Object>> setter, final Class<?> valueType, final Class<?> itemType) {
     super(name, jsonName, xmlName, required, valueType);
     this.getter = getter;
     this.setter = setter;
     this.itemType = itemType;
   }
 
-  public static ListProperty newListProperty(String name, String jsonName, String xmlName, boolean required,
-      Supplier<List<Object>> getter, Consumer<List<Object>> setter, Class<?> valueType, Class<?> itemType) {
+  public static ListProperty newListProperty(final String name, final String jsonName, final String xmlName, final boolean required,
+      final Supplier<List<Object>> getter, final Consumer<List<Object>> setter, final Class<?> valueType, final Class<?> itemType) {
     return new ListProperty(name, jsonName, xmlName, required, getter, setter, valueType, itemType);
   }
 
@@ -34,6 +34,11 @@ public class ListProperty extends MessageProperty {
 
   public Class<?> getItemType() {
     return itemType;
+  }
+
+  @Override
+  public String toString() {
+    return "listProp[super=" + super.toString() + "], itemType=" + itemType.getTypeName() + "]";
   }
 
 }

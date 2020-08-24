@@ -7,19 +7,22 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.BeanProperty;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonDeserializer;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.type.TypeFactory;
+import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import com.langtoun.messages.generic.Message.MessageJsonDeserializer;
 import com.langtoun.messages.generic.Message.MessageJsonSerializer;
+import com.langtoun.messages.properties.MessageProperty;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.util.JsonSerializationUtil;
 
@@ -34,17 +37,27 @@ import com.langtoun.messages.util.JsonSerializationUtil;
 public class Message<T extends SerializablePayload> {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final TypeFactory TYPE_FACTORY;
 
   static {
     OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    TYPE_FACTORY = OBJECT_MAPPER.getTypeFactory();
   }
 
   private T payload;
 
-  private Message() {
+  protected Message() {
     // create using factory method
+  }
+
+  public T getPayload() {
+    return payload;
+  }
+
+  public void setPayload(final T payload) {
+    this.payload = payload;
+  }
+
+  public static ObjectMapper getObjectMapper() {
+    return OBJECT_MAPPER;
   }
 
   public static <T extends SerializablePayload> Message<T> from(final T payload) {
@@ -53,22 +66,12 @@ public class Message<T extends SerializablePayload> {
     return message;
   }
 
-  public static <T extends SerializablePayload> Message<T> from(final String json, TypeReference<Message<T>> typeReference) {
-    // final Message<T> message = new Message<>();
+  public static <T extends SerializablePayload> Message<T> from(final String json, final TypeReference<Message<T>> typeReference) {
     try {
       return OBJECT_MAPPER.readValue(json, typeReference);
-    } catch (JsonProcessingException e) {
-      throw new IllegalArgumentException("unable to de-serialize an instance of " + typeReference.toString());
+    } catch (final JsonProcessingException e) {
+      throw new IllegalArgumentException("unable to de-serialize an instance of " + typeReference.getType());
     }
-    // return message;
-  }
-
-  public T getPayload() {
-    return payload;
-  }
-
-  public void setPayload(T payload) {
-    this.payload = payload;
   }
 
   static class MessageJsonSerializer extends JsonSerializer<Message<SerializablePayload>> {
@@ -81,23 +84,53 @@ public class Message<T extends SerializablePayload> {
 
   }
 
-  static class MessageJsonDeserializer extends JsonDeserializer<Message<SerializablePayload>> {
+  static class MessageJsonDeserializer extends JsonDeserializer<Message<SerializablePayload>> implements ContextualDeserializer {
 
+    private JavaType javaType;
+
+    public MessageJsonDeserializer() {
+
+    }
+
+    public MessageJsonDeserializer(final JavaType javaType) {
+      this.javaType = javaType;
+    }
+
+    @SuppressWarnings("unchecked")
     @Override
     public Message<SerializablePayload> deserialize(final JsonParser parser, final DeserializationContext context)
         throws IOException, JsonProcessingException {
-      JsonNode node = parser.getCodec().readTree(parser);
+      @SuppressWarnings("unused")
+      final JsonNode node = parser.getCodec().readTree(parser);
 
-      JavaType jt = TYPE_FACTORY.constructType(SerializablePayload.class);
-      System.out.println("signature = " + jt.getGenericSignature());
+      try {
+        final Message<SerializablePayload> message = (Message<SerializablePayload>) javaType.getRawClass().newInstance();
+        final SerializablePayload payload = (SerializablePayload) javaType.containedType(0).getRawClass().newInstance();
 
-      // SerializablePayload object =
+        System.out.println("<begin>");
+        System.out.println("signature = " + javaType.getGenericSignature());
+        System.out.println("javaType  = " + javaType.toString());
+        System.out.println("class     = " + message.getClass());
+        System.out.println("payload   = " + payload.getClass());
 
-      // return OBJECT_MAPPER.readValue(node.asText(), SerializablePayload.class);
+        int i = 0;
+        for (MessageProperty property : payload.getProperties()) {
+          System.out.println("property[" + (i++) + "] = " + property);
+        }
+        System.out.println("<end>");
 
-      final Message<SerializablePayload> message = new Message<>();
+        message.setPayload(null /* deserialize(node) */);
+        return message;
+      } catch (InstantiationException | IllegalAccessException e) {
+        throw new IllegalArgumentException("unable to de-serialize an instance of " + javaType.getTypeName());
+      }
+    }
 
-      return message;
+    @Override
+    public JsonDeserializer<?> createContextual(final DeserializationContext context, final BeanProperty property)
+        throws JsonMappingException {
+      final JavaType javaType = context.getContextualType() != null ? context.getContextualType() : property.getMember().getType();
+      return new MessageJsonDeserializer(javaType);
     }
 
   }

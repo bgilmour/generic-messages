@@ -3,7 +3,6 @@ package com.langtoun.messages;
 import java.io.IOException;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.langtoun.messages.generic.Message;
 import com.langtoun.messages.types.cars.CarEngine;
 import com.langtoun.messages.types.cars.CarFeature;
@@ -30,12 +29,13 @@ public class App {
     final Message<ComplexCar> encMessage2 = Message.from(car2);
     final Message<ComplexCarWithFeatures> encMessage3 = Message.from(car3);
 
-    final ObjectMapper mapper = new ObjectMapper();
-
     try {
-      System.out.println("serialize: car1(" + car1 + ") -> " + mapper.writeValueAsString(encMessage1));
-      System.out.println("serialize: car2(" + car2 + ") -> " + mapper.writeValueAsString(encMessage2));
-      System.out.println("serialize: car3(" + car3 + ") -> " + mapper.writeValueAsString(encMessage3));
+      System.out.println("serialize: car1(" + car1 + ") -> "
+          + Message.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(encMessage1));
+      System.out.println("serialize: car2(" + car2 + ") -> "
+          + Message.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(encMessage2));
+      System.out.println("serialize: car3(" + car3 + ") -> "
+          + Message.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(encMessage3));
     } catch (final IOException e) {
       e.printStackTrace();
     }
@@ -46,12 +46,14 @@ public class App {
 
     Message<SimpleCar> decMessage1 = Message.from(jsonCar1, new TypeReference<Message<SimpleCar>>() {
     });
-//    Message<ComplexCar> decMessage2 = Message.from(jsonCar2, ComplexCar.class);
-//    Message<ComplexCarWithFeatures> decMessage3 = Message.from(jsonCar3, ComplexCarWithFeatures.class);
+    Message<ComplexCar> decMessage2 = Message.from(jsonCar2, new TypeReference<Message<ComplexCar>>() {
+    });
+    Message<ComplexCarWithFeatures> decMessage3 = Message.from(jsonCar3, new TypeReference<Message<ComplexCarWithFeatures>>() {
+    });
 
     System.out.println("deserialize: jsonCar1(" + jsonCar1 + ") -> " + decMessage1.getPayload());
-//    System.out.println("deserialize: jsonCar2(" + jsonCar2 + ") -> " + decMessage2.getPayload());
-//    System.out.println("deserialize: jsonCar3(" + jsonCar3 + ") -> " + decMessage3.getPayload());
+    System.out.println("deserialize: jsonCar2(" + jsonCar2 + ") -> " + decMessage2.getPayload());
+    System.out.println("deserialize: jsonCar3(" + jsonCar3 + ") -> " + decMessage3.getPayload());
   }
 
 }

@@ -10,7 +10,7 @@ public class MessageProperty {
 
   private final Class<?> valueType;
 
-  protected MessageProperty(String name, String jsonName, String xmlName, boolean required, Class<?> valueType) {
+  protected MessageProperty(final String name, final String jsonName, final String xmlName, final boolean required, final Class<?> valueType) {
     super();
     this.name = name;
     this.jsonName = jsonName;
@@ -37,6 +37,11 @@ public class MessageProperty {
 
   public Class<?> getValueType() {
     return valueType;
+  }
+
+  @Override
+  public String toString() {
+    return "[name=" + name + ", required=" + required + ", value=" + valueType.getTypeName() + "]";
   }
 
 }
