@@ -4,7 +4,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.types.SerializablePayload;
 
-@JsonSerialize(using = MessageSerializer.class)
+/**
+ * Generic message container.
+ *
+ * @param <T> the generic type representing the payload
+ */
+@JsonSerialize(using = MessageJsonSerializer.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Message<T extends SerializablePayload> {
 
@@ -18,8 +23,8 @@ public class Message<T extends SerializablePayload> {
     return payload;
   }
 
-  public static <T extends SerializablePayload> Message<T> newMessage(T payload) {
-    final Message<T> message = new Message<T>();
+  public static <T extends SerializablePayload> Message<T> newMessage(final T payload) {
+    final Message<T> message = new Message<>();
     message.payload = payload;
     return message;
   }

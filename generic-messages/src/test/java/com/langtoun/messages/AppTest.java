@@ -6,18 +6,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.langtoun.messages.generic.Message;
-import com.langtoun.messages.types.CarEngine;
-import com.langtoun.messages.types.CarFeature;
-import com.langtoun.messages.types.ComplexCar;
-import com.langtoun.messages.types.ComplexCarWithFeatures;
-import com.langtoun.messages.types.SimpleCar;
+import com.langtoun.messages.types.cars.CarEngine;
+import com.langtoun.messages.types.cars.CarFeature;
+import com.langtoun.messages.types.cars.ComplexCar;
+import com.langtoun.messages.types.cars.ComplexCarWithFeatures;
+import com.langtoun.messages.types.cars.SimpleCar;
 
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
 /**
- * Unit test for simple App.
+ * Unit tests for generic messages.
  */
 public class AppTest extends TestCase {
   /**

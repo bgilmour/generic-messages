@@ -1,4 +1,4 @@
-package com.langtoun.messages.types;
+package com.langtoun.messages.types.cars;
 
 import static com.langtoun.messages.properties.ScalarProperty.newScalarProperty;
 

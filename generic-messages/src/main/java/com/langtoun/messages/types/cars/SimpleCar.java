@@ -1,4 +1,4 @@
-package com.langtoun.messages.types;
+package com.langtoun.messages.types.cars;
 
 import static com.langtoun.messages.properties.ScalarProperty.newScalarProperty;
 
@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.langtoun.messages.properties.MessageProperty;
+import com.langtoun.messages.types.SerializablePayload;
 
 public class SimpleCar implements SerializablePayload {
 

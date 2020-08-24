@@ -10,9 +10,13 @@ import com.langtoun.messages.properties.MessageProperty;
 import com.langtoun.messages.properties.ScalarProperty;
 import com.langtoun.messages.types.SerializablePayload;
 
-public final class SerializationUtil {
+/**
+ * Utility class used by the generic message JSON serializer.
+ *
+ */
+public final class JsonSerializationUtil {
 
-  private SerializationUtil() {
+  private JsonSerializationUtil() {
     // static utility class
   }
 
