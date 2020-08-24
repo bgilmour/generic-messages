@@ -68,7 +68,7 @@ public class AppTest extends TestCase {
 
   public void testSerializerWithMessageSimpleCar() throws IOException {
     final SimpleCar car = new SimpleCar("Blue", "Mazda");
-    final Message<SimpleCar> message = Message.newMessage(car);
+    final Message<SimpleCar> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
@@ -80,7 +80,7 @@ public class AppTest extends TestCase {
 
   public void testSerializerWithMessageComplexCar() throws IOException {
     final ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(4, "petrol"));
-    final Message<ComplexCar> message = Message.newMessage(car);
+    final Message<ComplexCar> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
@@ -92,7 +92,7 @@ public class AppTest extends TestCase {
 
   public void testSerializerWithMessageComplexCarAndRequiredNull() throws IOException {
     final ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(null, "petrol"));
-    final Message<ComplexCar> message = Message.newMessage(car);
+    final Message<ComplexCar> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":null,\"fuelType\":\"petrol\"}}";
@@ -104,7 +104,7 @@ public class AppTest extends TestCase {
 
   public void testSerializerWithMessageComplexCarAndOptionalNull() throws IOException {
     final ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(4, null));
-    final Message<ComplexCar> message = Message.newMessage(car);
+    final Message<ComplexCar> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4}}";
@@ -116,7 +116,7 @@ public class AppTest extends TestCase {
 
   public void testSerializerWithMessageComplexCarAndNoFeatures() throws IOException {
     final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, null));
-    final Message<ComplexCarWithFeatures> message = Message.newMessage(car);
+    final Message<ComplexCarWithFeatures> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4}}";
@@ -129,7 +129,7 @@ public class AppTest extends TestCase {
   public void testSerializerWithMessageComplexCarAndOneFeature() throws IOException {
     final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, null));
     car.addFeature(new CarFeature("19 inch alloys", 1000.0));
-    final Message<ComplexCarWithFeatures> message = Message.newMessage(car);
+    final Message<ComplexCarWithFeatures> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4},\"features\":[{\"name\":\"19 inch alloys\",\"price\":1000.0}]}";
@@ -142,7 +142,7 @@ public class AppTest extends TestCase {
   public void testSerializerWithMessageComplexCarAndOneFeatureOptionalNull() throws IOException {
     final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, null));
     car.addFeature(new CarFeature("19 inch alloys", null));
-    final Message<ComplexCarWithFeatures> message = Message.newMessage(car);
+    final Message<ComplexCarWithFeatures> message = Message.from(car);
 
     final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4},\"features\":[{\"name\":\"19 inch alloys\"}]}";
