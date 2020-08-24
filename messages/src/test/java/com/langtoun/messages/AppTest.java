@@ -36,8 +36,8 @@ public class AppTest extends TestCase {
 
   public void testSerializeCarWithObjectMapper() throws JsonProcessingException {
     final ObjectMapper objectMapper = new ObjectMapper();
-    final SimpleCar car = new SimpleCar("yellow", "renault");
-    final String jsonCar = "{\"colour\":\"yellow\",\"type\":\"renault\",\"properties\":[{\"name\":\"colour\",\"jsonName\":\"colour\",\"xmlName\":\"colour\",\"required\":true,\"valueType\":\"java.lang.String\",\"getter\":{},\"setter\":{}},{\"name\":\"type\",\"jsonName\":\"type\",\"xmlName\":\"type\",\"required\":true,\"valueType\":\"java.lang.String\",\"getter\":{},\"setter\":{}}]}";
+    final SimpleCar car = new SimpleCar("Yellow", "Renault");
+    final String jsonCar = "{\"colour\":\"Yellow\",\"type\":\"Renault\",\"properties\":[{\"name\":\"colour\",\"jsonName\":\"colour\",\"xmlName\":\"colour\",\"required\":true,\"valueType\":\"java.lang.String\",\"getter\":{},\"setter\":{}},{\"name\":\"type\",\"jsonName\":\"type\",\"xmlName\":\"type\",\"required\":true,\"valueType\":\"java.lang.String\",\"getter\":{},\"setter\":{}}]}";
     final String carStr = objectMapper.writeValueAsString(car);
     System.out.println(carStr);
 
@@ -50,7 +50,7 @@ public class AppTest extends TestCase {
     final String json = "{ \"colour\" : \"Black\", \"type\" : \"BMW\" }";
     final Object car = objectMapper.readValue(json, clazz);
 
-    assertEquals(car.toString(), "Black BMW");
+    assertEquals("Black BMW", car.toString());
   }
 
   public void testDeserializeSimpleCarWithObjectMapperUsingTypeReference() throws JsonProcessingException {
@@ -58,10 +58,10 @@ public class AppTest extends TestCase {
     final TypeReference<?> typeRef = new TypeReference<SimpleCar>() {
       // no implementation
     };
-    final String json = "{ \"colour\" : \"Black\", \"type\" : \"BMW\" }";
+    final String json = "{ \"colour\" : \"White\", \"type\" : \"BMW\" }";
     final Object car = objectMapper.readValue(json, typeRef);
 
-    assertEquals(car.toString(), "Black BMW");
+    assertEquals("White BMW", car.toString());
   }
 
   public void testSerializerWithMessageSimpleCar() throws IOException {
@@ -88,9 +88,9 @@ public class AppTest extends TestCase {
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarWithRequiredNull() throws IOException {
+  public void testSerializerWithMessageComplexCarAndRequiredNull() throws IOException {
     ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(null, "petrol"));
-    Message<ComplexCar> message = Message.<ComplexCar>newMessage(car);
+    Message<ComplexCar> message = Message.newMessage(car);
 
     ObjectMapper objectMapper = new ObjectMapper();
     String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":null,\"fuelType\":\"petrol\"}}";
@@ -100,9 +100,9 @@ public class AppTest extends TestCase {
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarWithOptionalNull() throws IOException {
+  public void testSerializerWithMessageComplexCarAndOptionalNull() throws IOException {
     ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(4, null));
-    Message<ComplexCar> message = Message.<ComplexCar>newMessage(car);
+    Message<ComplexCar> message = Message.newMessage(car);
 
     ObjectMapper objectMapper = new ObjectMapper();
     String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4}}";
