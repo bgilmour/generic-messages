@@ -11,7 +11,8 @@ import com.langtoun.messages.compilation.types.cars.SimpleCar;
 import com.langtoun.messages.runtime.generic.Message;
 
 /**
- * App featuring eneric (de-)serializable message with de-coupled payload types.
+ * App featuring generic (de-)serializable message with de-coupled payload
+ * types.
  *
  */
 public class App {

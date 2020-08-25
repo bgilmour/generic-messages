@@ -17,14 +17,14 @@ public class JsonDeserializationUtil {
     // static utility class
   }
 
-  public static SerializablePayload deserialize(final SerializablePayload payload, JsonNode node,
+  public static SerializablePayload deserialize(final SerializablePayload payload, JsonNode root,
       final DeserializationContext context) {
     for (MessageProperty property : payload.getProperties()) {
       // find each property in turn and populate the payload, creating new payload
       // objects as the deserializer walks the node tree
-      final JsonNode field = node.findValue(property.getJsonName());
+      final JsonNode field = root.findValue(property.getJsonName());
       if (property instanceof ListProperty) {
-        if (node.isArray()) {
+        if (field.isArray()) {
           final ListProperty listProperty = (ListProperty) property;
           // deserialize the array values
         } else {
