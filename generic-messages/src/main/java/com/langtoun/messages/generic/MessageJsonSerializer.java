@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.util.List;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.ListProperty;
@@ -11,19 +14,30 @@ import com.langtoun.messages.types.properties.MessageProperty;
 import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
- * Utility class used by the generic message JSON serializer.
+ * JSON serializer for types that implement the {@link SerializablePayload}
+ * interface.
  *
  */
-public final class JsonSerializationUtil {
+public class MessageJsonSerializer extends JsonSerializer<Message<SerializablePayload>> {
 
-  private JsonSerializationUtil() {
-    // static utility class
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  static {
+    // replace with configuration appropriate to serialization
+    OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
   }
 
-  public static void serialize(SerializablePayload payload, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+  @Override
+  public void serialize(final Message<SerializablePayload> value, final JsonGenerator gen, final SerializerProvider serializers)
+      throws IOException {
+    serialize(value.getPayload(), gen, serializers);
+  }
+
+  private static void serialize(final SerializablePayload payload, final JsonGenerator gen, final SerializerProvider serializers)
+      throws IOException {
     if (payload != null) {
       gen.writeStartObject();
-      for (MessageProperty property : payload.getProperties()) {
+      for (final MessageProperty property : payload.getProperties()) {
         if (property instanceof ListProperty) {
           final ListProperty listProperty = (ListProperty) property;
           writeArrayValues(listProperty.getJsonName(), listProperty.getGetter().get(), listProperty.isRequired(), gen, serializers);
@@ -42,8 +56,8 @@ public final class JsonSerializationUtil {
     }
   }
 
-  public static void writeScalarValue(final String fieldName, final Object value, final boolean required, final JsonGenerator gen,
-      SerializerProvider serializers) throws IOException {
+  private static void writeScalarValue(final String fieldName, final Object value, final boolean required, final JsonGenerator gen,
+      final SerializerProvider serializers) throws IOException {
     if (value == null && required) {
       // write a null
       gen.writeNullField(fieldName);
@@ -54,7 +68,7 @@ public final class JsonSerializationUtil {
     }
   }
 
-  private static void writeScalarValue(final Object value, final JsonGenerator gen, SerializerProvider serializers)
+  private static void writeScalarValue(final Object value, final JsonGenerator gen, final SerializerProvider serializers)
       throws IOException {
     if (value instanceof SerializablePayload) {
       serialize((SerializablePayload) value, gen, serializers);
@@ -69,13 +83,14 @@ public final class JsonSerializationUtil {
     }
   }
 
-  public static void writeArrayValues(final List<Object> array, final boolean required, final JsonGenerator gen,
-      SerializerProvider serializers) throws IOException {
+  @SuppressWarnings("unused")
+  private static void writeArrayValues(final List<Object> array, final boolean required, final JsonGenerator gen,
+      final SerializerProvider serializers) throws IOException {
     writeArrayValues(null, array, required, gen, serializers);
   }
 
-  public static void writeArrayValues(final String fieldName, final List<Object> array, final boolean required,
-      final JsonGenerator gen, SerializerProvider serializers) throws IOException {
+  private static void writeArrayValues(final String fieldName, final List<Object> array, final boolean required,
+      final JsonGenerator gen, final SerializerProvider serializers) throws IOException {
     if (required || (array != null && !array.isEmpty())) {
       if (fieldName != null) {
         gen.writeFieldName(fieldName);

@@ -26,10 +26,12 @@ public class App {
     final ComplexCarWithFeatures car3 = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, "petrol"));
     car3.addFeature(new CarFeature("19 inch alloys", null));
     car3.addFeature(new CarFeature("Bose sound system", 1200.0));
+    final CarEngine engine = new CarEngine(6, "petrol");
 
     final Message<SimpleCar> encMessage1 = Message.from(car1);
     final Message<ComplexCar> encMessage2 = Message.from(car2);
     final Message<ComplexCarWithFeatures> encMessage3 = Message.from(car3);
+    final Message<CarEngine> encMessage4 = Message.from(engine);
 
     try {
       System.out.println("serialize: car1(" + car1 + ") -> "
@@ -38,6 +40,8 @@ public class App {
           + Message.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(encMessage2));
       System.out.println("serialize: car3(" + car3 + ") -> "
           + Message.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(encMessage3));
+      System.out.println("serialize: engine(" + engine + ") -> "
+          + Message.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(encMessage4));
     } catch (final IOException e) {
       e.printStackTrace();
     }
@@ -47,11 +51,11 @@ public class App {
     final String jsonCar2 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
     final String jsonCar3 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
 
-    Message<SimpleCar> decMessage1 = Message.from(jsonCar1, new TypeReference<Message<SimpleCar>>() {
+    final Message<SimpleCar> decMessage1 = Message.from(jsonCar1, new TypeReference<Message<SimpleCar>>() {
     });
-    Message<ComplexCar> decMessage2 = Message.from(jsonCar2, new TypeReference<Message<ComplexCar>>() {
+    final Message<ComplexCar> decMessage2 = Message.from(jsonCar2, new TypeReference<Message<ComplexCar>>() {
     });
-    Message<ComplexCarWithFeatures> decMessage3 = Message.from(jsonCar3, new TypeReference<Message<ComplexCarWithFeatures>>() {
+    final Message<ComplexCarWithFeatures> decMessage3 = Message.from(jsonCar3, new TypeReference<Message<ComplexCarWithFeatures>>() {
     });
 
     System.out.println("deserialize: jsonCar1(" + jsonCar1 + ") -> " + decMessage1.getPayload());
