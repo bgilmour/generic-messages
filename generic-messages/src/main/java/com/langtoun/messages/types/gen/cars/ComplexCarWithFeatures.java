@@ -6,17 +6,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.MessageProperty;
 
+/**
+ * Surrogate for a generated type that implements {@link SerializablePayload}.
+ *
+ */
 public class ComplexCarWithFeatures extends ComplexCar {
 
-  private List<CarFeature> features = new ArrayList<>();
+  private final List<CarFeature> features = new ArrayList<>();
 
   public ComplexCarWithFeatures() {
     // TODO Auto-generated constructor stub
   }
 
-  public ComplexCarWithFeatures(String colour, String type, CarEngine engine) {
+  public ComplexCarWithFeatures(final String colour, final String type, final CarEngine engine) {
     super(colour, type, engine);
     // TODO Auto-generated constructor stub
   }
@@ -25,11 +30,11 @@ public class ComplexCarWithFeatures extends ComplexCar {
     return features;
   }
 
-  public void setFeatures(List<CarFeature> features) {
+  public void setFeatures(final List<CarFeature> features) {
     this.features.addAll(features);
   }
 
-  public void addFeature(CarFeature feature) {
+  public void addFeature(final CarFeature feature) {
     features.add(feature);
   }
 

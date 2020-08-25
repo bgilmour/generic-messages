@@ -9,6 +9,10 @@ import java.util.List;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.MessageProperty;
 
+/**
+ * Surrogate for a generated type that implements {@link SerializablePayload}.
+ *
+ */
 public class CarFeature implements SerializablePayload {
 
   private String name;

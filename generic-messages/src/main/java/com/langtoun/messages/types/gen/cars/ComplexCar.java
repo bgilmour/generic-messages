@@ -4,8 +4,13 @@ import static com.langtoun.messages.types.properties.ScalarProperty.newScalarPro
 
 import java.util.List;
 
+import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.MessageProperty;
 
+/**
+ * Surrogate for a generated type that implements {@link SerializablePayload}.
+ *
+ */
 public class ComplexCar extends SimpleCar {
 
   private CarEngine engine; // required
