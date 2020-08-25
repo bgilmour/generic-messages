@@ -1,8 +1,8 @@
-package com.langtoun.messages.types;
+package com.langtoun.messages.compilation.types;
 
 import java.util.List;
 
-import com.langtoun.messages.properties.MessageProperty;
+import com.langtoun.messages.compilation.properties.MessageProperty;
 
 /**
  * Interface for payload types that are to be transported by generic messages.

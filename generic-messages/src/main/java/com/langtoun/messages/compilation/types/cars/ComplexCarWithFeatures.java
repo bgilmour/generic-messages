@@ -1,12 +1,12 @@
-package com.langtoun.messages.types.cars;
+package com.langtoun.messages.compilation.types.cars;
 
-import static com.langtoun.messages.properties.ListProperty.newListProperty;
+import static com.langtoun.messages.compilation.properties.ListProperty.newListProperty;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.langtoun.messages.properties.MessageProperty;
+import com.langtoun.messages.compilation.properties.MessageProperty;
 
 public class ComplexCarWithFeatures extends ComplexCar {
 

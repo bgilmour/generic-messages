@@ -1,13 +1,13 @@
-package com.langtoun.messages.types.cars;
+package com.langtoun.messages.compilation.types.cars;
 
-import static com.langtoun.messages.properties.ScalarProperty.newScalarProperty;
+import static com.langtoun.messages.compilation.properties.ScalarProperty.newScalarProperty;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import com.langtoun.messages.properties.MessageProperty;
-import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.compilation.properties.MessageProperty;
+import com.langtoun.messages.compilation.types.SerializablePayload;
 
 public class CarFeature implements SerializablePayload {
 

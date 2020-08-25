@@ -1,14 +1,14 @@
-package com.langtoun.messages.util;
+package com.langtoun.messages.runtime.generic;
 
 import java.io.IOException;
 import java.util.List;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.langtoun.messages.properties.ListProperty;
-import com.langtoun.messages.properties.MessageProperty;
-import com.langtoun.messages.properties.ScalarProperty;
-import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.compilation.properties.ListProperty;
+import com.langtoun.messages.compilation.properties.MessageProperty;
+import com.langtoun.messages.compilation.properties.ScalarProperty;
+import com.langtoun.messages.compilation.types.SerializablePayload;
 
 /**
  * Utility class used by the generic message JSON serializer.
@@ -20,10 +20,10 @@ public final class JsonSerializationUtil {
     // static utility class
   }
 
-  public static void serialize(SerializablePayload value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-    if (value != null) {
+  public static void serialize(SerializablePayload payload, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+    if (payload != null) {
       gen.writeStartObject();
-      for (MessageProperty property : value.getProperties()) {
+      for (MessageProperty property : payload.getProperties()) {
         if (property instanceof ListProperty) {
           final ListProperty listProperty = (ListProperty) property;
           writeArrayValues(listProperty.getJsonName(), listProperty.getGetter().get(), listProperty.isRequired(), gen, serializers);

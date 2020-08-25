@@ -3,12 +3,12 @@ package com.langtoun.messages;
 import java.io.IOException;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.langtoun.messages.generic.Message;
-import com.langtoun.messages.types.cars.CarEngine;
-import com.langtoun.messages.types.cars.CarFeature;
-import com.langtoun.messages.types.cars.ComplexCar;
-import com.langtoun.messages.types.cars.ComplexCarWithFeatures;
-import com.langtoun.messages.types.cars.SimpleCar;
+import com.langtoun.messages.compilation.types.cars.CarEngine;
+import com.langtoun.messages.compilation.types.cars.CarFeature;
+import com.langtoun.messages.compilation.types.cars.ComplexCar;
+import com.langtoun.messages.compilation.types.cars.ComplexCarWithFeatures;
+import com.langtoun.messages.compilation.types.cars.SimpleCar;
+import com.langtoun.messages.runtime.generic.Message;
 
 /**
  * App featuring eneric (de-)serializable message with de-coupled payload types.
@@ -19,6 +19,7 @@ public class App {
   public static void main(final String[] args) {
     System.out.println("Running com.langtoun.messages.App ...");
 
+    System.out.println("---- SERIALIZATION ----");
     final SimpleCar car1 = new SimpleCar("Blue", "Mazda");
     final ComplexCar car2 = new ComplexCar("Blue", "Mazda", new CarEngine(4, "petrol"));
     final ComplexCarWithFeatures car3 = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, "petrol"));
@@ -40,6 +41,7 @@ public class App {
       e.printStackTrace();
     }
 
+    System.out.println("---- DESERIALIZATION ----");
     final String jsonCar1 = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
     final String jsonCar2 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
     final String jsonCar3 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";

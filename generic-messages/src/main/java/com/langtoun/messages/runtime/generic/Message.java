@@ -1,4 +1,4 @@
-package com.langtoun.messages.generic;
+package com.langtoun.messages.runtime.generic;
 
 import java.io.IOException;
 
@@ -20,11 +20,10 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
-import com.langtoun.messages.generic.Message.MessageJsonDeserializer;
-import com.langtoun.messages.generic.Message.MessageJsonSerializer;
-import com.langtoun.messages.properties.MessageProperty;
-import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.util.JsonSerializationUtil;
+import com.langtoun.messages.compilation.properties.MessageProperty;
+import com.langtoun.messages.compilation.types.SerializablePayload;
+import com.langtoun.messages.runtime.generic.Message.MessageJsonDeserializer;
+import com.langtoun.messages.runtime.generic.Message.MessageJsonSerializer;
 
 /**
  * Generic message container.
@@ -119,7 +118,7 @@ public class Message<T extends SerializablePayload> {
         }
         System.out.println("<end>");
 
-        message.setPayload(null /* deserialize(node) */);
+        message.setPayload(JsonDeserializationUtil.deserialize(payload, node, context));
         return message;
       } catch (InstantiationException | IllegalAccessException e) {
         throw new IllegalArgumentException("unable to de-serialize an instance of " + javaType.getTypeName());
