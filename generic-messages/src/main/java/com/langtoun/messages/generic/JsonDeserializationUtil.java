@@ -1,11 +1,11 @@
-package com.langtoun.messages.runtime.generic;
+package com.langtoun.messages.generic;
 
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.langtoun.messages.compilation.properties.ListProperty;
-import com.langtoun.messages.compilation.properties.MessageProperty;
-import com.langtoun.messages.compilation.properties.ScalarProperty;
-import com.langtoun.messages.compilation.types.SerializablePayload;
+import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.types.properties.ListProperty;
+import com.langtoun.messages.types.properties.MessageProperty;
+import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
  * Utility class used by the generic message JSON deserializer.

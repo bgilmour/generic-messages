@@ -5,12 +5,12 @@ import java.io.IOException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.langtoun.messages.compilation.types.cars.CarEngine;
-import com.langtoun.messages.compilation.types.cars.CarFeature;
-import com.langtoun.messages.compilation.types.cars.ComplexCar;
-import com.langtoun.messages.compilation.types.cars.ComplexCarWithFeatures;
-import com.langtoun.messages.compilation.types.cars.SimpleCar;
-import com.langtoun.messages.runtime.generic.Message;
+import com.langtoun.messages.generic.Message;
+import com.langtoun.messages.types.gen.cars.CarEngine;
+import com.langtoun.messages.types.gen.cars.CarFeature;
+import com.langtoun.messages.types.gen.cars.ComplexCar;
+import com.langtoun.messages.types.gen.cars.ComplexCarWithFeatures;
+import com.langtoun.messages.types.gen.cars.SimpleCar;
 
 import junit.framework.Test;
 import junit.framework.TestCase;

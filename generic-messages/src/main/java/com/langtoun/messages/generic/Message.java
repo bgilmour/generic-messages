@@ -1,4 +1,4 @@
-package com.langtoun.messages.runtime.generic;
+package com.langtoun.messages.generic;
 
 import java.io.IOException;
 
@@ -20,10 +20,10 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
-import com.langtoun.messages.compilation.properties.MessageProperty;
-import com.langtoun.messages.compilation.types.SerializablePayload;
-import com.langtoun.messages.runtime.generic.Message.MessageJsonDeserializer;
-import com.langtoun.messages.runtime.generic.Message.MessageJsonSerializer;
+import com.langtoun.messages.generic.Message.MessageJsonDeserializer;
+import com.langtoun.messages.generic.Message.MessageJsonSerializer;
+import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.types.properties.MessageProperty;
 
 /**
  * Generic message container.

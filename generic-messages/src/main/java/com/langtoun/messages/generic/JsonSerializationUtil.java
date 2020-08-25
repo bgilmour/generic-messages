@@ -1,14 +1,14 @@
-package com.langtoun.messages.runtime.generic;
+package com.langtoun.messages.generic;
 
 import java.io.IOException;
 import java.util.List;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.langtoun.messages.compilation.properties.ListProperty;
-import com.langtoun.messages.compilation.properties.MessageProperty;
-import com.langtoun.messages.compilation.properties.ScalarProperty;
-import com.langtoun.messages.compilation.types.SerializablePayload;
+import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.types.properties.ListProperty;
+import com.langtoun.messages.types.properties.MessageProperty;
+import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
  * Utility class used by the generic message JSON serializer.
