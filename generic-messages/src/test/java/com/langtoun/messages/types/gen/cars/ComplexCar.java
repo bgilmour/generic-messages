@@ -25,8 +25,8 @@ public class ComplexCar extends SimpleCar {
 
   }
 
-  public ComplexCar(final String colour, final String type, final CarEngine engine) {
-    super(colour, type);
+  public ComplexCar(final String colour, final String type, final Boolean rightHandDrive, final CarEngine engine) {
+    super(colour, type, rightHandDrive);
     this.engine = engine;
   }
 

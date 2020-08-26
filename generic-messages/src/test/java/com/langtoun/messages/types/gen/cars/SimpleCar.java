@@ -23,14 +23,16 @@ public class SimpleCar implements SerializablePayload {
 
   private String colour; // required
   private String type; // required
+  private Boolean rightHandDrive; // optional
 
   public SimpleCar() {
 
   }
 
-  public SimpleCar(final String colour, final String type) {
+  public SimpleCar(final String colour, final String type, final Boolean rightHandDrive) {
     this.colour = colour;
     this.type = type;
+    this.rightHandDrive = rightHandDrive;
   }
 
   public String getColour() { return colour; }
@@ -41,16 +43,22 @@ public class SimpleCar implements SerializablePayload {
 
   public void setType(final String type) { this.type = type; }
 
+  public Boolean getRightHandDrive() { return rightHandDrive; }
+
+  public void setRightHandDrive(Boolean rightHandDrive) { this.rightHandDrive = rightHandDrive; }
+
   @Override
   public List<MessageProperty> getProperties() {
     return new ArrayList<>(Arrays.asList(
         newScalarProperty("colour", "colour", "colour", true, () -> getColour(), o -> setColour((String) o), String.class),
-        newScalarProperty("type", "type", "type", true, () -> getType(), o -> setType((String) o), String.class)));
+        newScalarProperty("type", "type", "type", true, () -> getType(), o -> setType((String) o), String.class),
+        newScalarProperty("rightHandDrive", "right_hand_drive", "rightHandDrive", false, () -> getRightHandDrive(),
+            o -> setRightHandDrive((Boolean) o), Boolean.class)));
   }
 
   @Override
   public String toString() {
-    return colour + " " + type;
+    return colour + " " + type + (rightHandDrive == null ? "" : rightHandDrive ? " (rhd)" : " (lhd)");
   }
 
 }

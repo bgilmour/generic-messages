@@ -27,8 +27,8 @@ public class ComplexCarWithFeatures extends ComplexCar {
     // TODO Auto-generated constructor stub
   }
 
-  public ComplexCarWithFeatures(final String colour, final String type, final CarEngine engine) {
-    super(colour, type, engine);
+  public ComplexCarWithFeatures(final String colour, final String type, final Boolean rightHandDrive, final CarEngine engine) {
+    super(colour, type, rightHandDrive, engine);
     // TODO Auto-generated constructor stub
   }
 
