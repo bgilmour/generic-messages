@@ -84,6 +84,7 @@ public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayloa
           throw new IllegalStateException(nodePath + fieldName + ": failed to process property");
         }
       } else if (property.isRequired()) {
+        System.out.println(indent + fieldName + " - required (not present)");
         throw new IllegalStateException(nodePath + fieldName + ": missing required property");
       } else {
         System.out.println(indent + fieldName + " - optional (not present)");
