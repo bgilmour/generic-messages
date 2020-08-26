@@ -3,23 +3,25 @@ package com.langtoun.messages;
 import java.io.IOException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.langtoun.messages.generic.Message;
-import com.langtoun.messages.types.CarEngine;
-import com.langtoun.messages.types.CarFeature;
-import com.langtoun.messages.types.ComplexCar;
-import com.langtoun.messages.types.ComplexCarWithFeatures;
-import com.langtoun.messages.types.SimpleCar;
+import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.types.gen.cars.CarEngine;
+import com.langtoun.messages.types.gen.cars.CarFeature;
+import com.langtoun.messages.types.gen.cars.ComplexCar;
+import com.langtoun.messages.types.gen.cars.ComplexCarWithFeatures;
+import com.langtoun.messages.types.gen.cars.SimpleCar;
 
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
 
 /**
- * Unit test for simple App.
+ * Unit tests for generic messages.
  */
 public class AppTest extends TestCase {
+
+  private static final ObjectMapper mapper = new ObjectMapper();
+
   /**
    * Create the test case
    *
@@ -36,120 +38,161 @@ public class AppTest extends TestCase {
     return new TestSuite(AppTest.class);
   }
 
-  public void testSerializeCarWithObjectMapper() throws JsonProcessingException {
-    final ObjectMapper objectMapper = new ObjectMapper();
-    final SimpleCar car = new SimpleCar("Yellow", "Renault");
-    final String jsonCar = "{\"colour\":\"Yellow\",\"type\":\"Renault\",\"properties\":[{\"name\":\"colour\",\"jsonName\":\"colour\",\"xmlName\":\"colour\",\"required\":true,\"valueType\":\"java.lang.String\",\"getter\":{},\"setter\":{}},{\"name\":\"type\",\"jsonName\":\"type\",\"xmlName\":\"type\",\"required\":true,\"valueType\":\"java.lang.String\",\"getter\":{},\"setter\":{}}]}";
-    final String carStr = objectMapper.writeValueAsString(car);
-    System.out.println(carStr);
+  public void testPlayground() throws IOException {
+    System.out.println("---- SERIALIZATION ----");
+    final SerializablePayload car1 = new SimpleCar("Blue", "Mazda", null);
+    final SerializablePayload car2 = new ComplexCar("Blue", "Mazda", false, new CarEngine(4, "petrol"));
+    final SerializablePayload car3 = new ComplexCarWithFeatures("Blue", "Mazda", true, new CarEngine(4, "petrol"));
+    ((ComplexCarWithFeatures) car3).addFeature(new CarFeature("19 inch alloys", null));
+    ((ComplexCarWithFeatures) car3).addFeature(new CarFeature("Bose sound system", 1200.0));
+    final SerializablePayload engine = new CarEngine(6, "petrol");
+    final SerializablePayload feature = new CarFeature("Bose sound system", 1200.0);
 
-    assertEquals(jsonCar, carStr);
+    try {
+      System.out.println("serialize: car1(" + car1 + ") -> " + mapper.writeValueAsString(car1));
+      System.out.println("serialize: car2(" + car2 + ") -> " + mapper.writeValueAsString(car2));
+      System.out.println("serialize: car3(" + car3 + ") -> " + mapper.writeValueAsString(car3));
+      System.out.println("serialize: engine(" + engine + ") -> " + mapper.writeValueAsString(engine));
+      System.out.println("serialize: feature(" + feature + ") -> " + mapper.writeValueAsString(feature));
+    } catch (final IOException e) {
+      e.printStackTrace();
+    }
+
+    System.out.println("---- DESERIALIZATION ----");
+    final String jsonCar1 = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
+    final String jsonCar2 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
+    final String jsonCar3 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
+    final String jsonEngine = "{\"cylinders\":6,\"fuelType\":\"petrol\"}";
+    final String jsonFeature = "{\"name\":\"Bose sound system\",\"price\":1200.0}";
+
+    try {
+      final SerializablePayload decMessage1 = mapper.readValue(jsonCar1, SimpleCar.class);
+      final SerializablePayload decMessage2 = mapper.readValue(jsonCar2, ComplexCar.class);
+      final SerializablePayload decMessage3 = mapper.readValue(jsonCar3, ComplexCarWithFeatures.class);
+      final SerializablePayload decMessage4 = mapper.readValue(jsonEngine, CarEngine.class);
+      final SerializablePayload decMessage5 = mapper.readValue(jsonFeature, CarFeature.class);
+
+      System.out.println("deserialize: jsonCar1(" + jsonCar1 + ") -> " + decMessage1);
+      System.out.println("deserialize: jsonCar2(" + jsonCar2 + ") -> " + decMessage2);
+      System.out.println("deserialize: jsonCar3(" + jsonCar3 + ") -> " + decMessage3);
+      System.out.println("deserialize: jsonEngine(" + jsonEngine + ") -> " + decMessage4);
+      System.out.println("deserialize: jsonFeature(" + jsonFeature + ") -> " + decMessage5);
+    } catch (JsonProcessingException e) {
+      e.printStackTrace();
+    }
   }
 
-  public void testDeserializeSimpleCarWithObjectMapperUsingClass() throws JsonProcessingException {
-    final ObjectMapper objectMapper = new ObjectMapper();
-    final Class<?> clazz = SimpleCar.class;
-    final String json = "{ \"colour\" : \"Black\", \"type\" : \"BMW\" }";
-    final Object car = objectMapper.readValue(json, clazz);
+  public void testSerializerWithSimpleCar() throws IOException {
+    final SimpleCar car = new SimpleCar("Blue", "Mazda", null);
 
-    assertEquals("Black BMW", car.toString());
-  }
-
-  public void testDeserializeSimpleCarWithObjectMapperUsingTypeReference() throws JsonProcessingException {
-    final ObjectMapper objectMapper = new ObjectMapper();
-    final TypeReference<?> typeRef = new TypeReference<SimpleCar>() {
-      // no implementation
-    };
-    final String json = "{ \"colour\" : \"White\", \"type\" : \"BMW\" }";
-    final Object car = objectMapper.readValue(json, typeRef);
-
-    assertEquals("White BMW", car.toString());
-  }
-
-  public void testSerializerWithMessageSimpleCar() throws IOException {
-    final SimpleCar car = new SimpleCar("Blue", "Mazda");
-    final Message<SimpleCar> message = Message.newMessage(car);
-
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("simple(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCar() throws IOException {
-    final ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(4, "petrol"));
-    final Message<ComplexCar> message = Message.newMessage(car);
+  public void testSerializerWithComplexCar() throws IOException {
+    final ComplexCar car = new ComplexCar("Blue", "Mazda", null, new CarEngine(4, "petrol"));
 
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("complex(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarAndRequiredNull() throws IOException {
-    final ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(null, "petrol"));
-    final Message<ComplexCar> message = Message.newMessage(car);
+  public void testSerializerWithComplexCarAndRequiredNull() throws IOException {
+    final ComplexCar car = new ComplexCar("Blue", "Mazda", null, new CarEngine(null, "petrol"));
 
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":null,\"fuelType\":\"petrol\"}}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("complex(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarAndOptionalNull() throws IOException {
-    final ComplexCar car = new ComplexCar("Blue", "Mazda", new CarEngine(4, null));
-    final Message<ComplexCar> message = Message.newMessage(car);
+  public void testSerializerWithComplexCarAndOptionalNull() throws IOException {
+    final ComplexCar car = new ComplexCar("Blue", "Mazda", null, new CarEngine(4, null));
 
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4}}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("complex(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarAndNoFeatures() throws IOException {
-    final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, null));
-    final Message<ComplexCarWithFeatures> message = Message.newMessage(car);
+  public void testSerializerWithComplexCarAndNoFeatures() throws IOException {
+    final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", null, new CarEngine(4, null));
 
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4}}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("complex(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarAndOneFeature() throws IOException {
-    final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, null));
+  public void testSerializerWithComplexCarAndOneFeature() throws IOException {
+    final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", null, new CarEngine(4, null));
     car.addFeature(new CarFeature("19 inch alloys", 1000.0));
-    final Message<ComplexCarWithFeatures> message = Message.newMessage(car);
 
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4},\"features\":[{\"name\":\"19 inch alloys\",\"price\":1000.0}]}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("complex(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
   }
 
-  public void testSerializerWithMessageComplexCarAndOneFeatureOptionalNull() throws IOException {
-    final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", new CarEngine(4, null));
+  public void testSerializerWithComplexCarAndOneFeatureOptionalNull() throws IOException {
+    final ComplexCarWithFeatures car = new ComplexCarWithFeatures("Blue", "Mazda", null, new CarEngine(4, null));
     car.addFeature(new CarFeature("19 inch alloys", null));
-    final Message<ComplexCarWithFeatures> message = Message.newMessage(car);
 
-    final ObjectMapper objectMapper = new ObjectMapper();
     final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4},\"features\":[{\"name\":\"19 inch alloys\"}]}";
-    final String carStr = objectMapper.writeValueAsString(message);
-    System.out.println("complex(" + car + ") : " + carStr);
+    final String carStr = mapper.writeValueAsString(car);
 
     assertEquals(jsonCar, carStr);
+  }
+
+  public void testDeserializerWithSimpleCar() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
+    final String carStr = "Blue Mazda";
+    final SerializablePayload car = mapper.readValue(jsonCar, SimpleCar.class);
+
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializerWithSimpleCarLHD() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"right_hand_drive\":false}";
+    final String carStr = "Blue Mazda (lhd)";
+    final SerializablePayload car = mapper.readValue(jsonCar, SimpleCar.class);
+
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializerWithSimpleCarRHD() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"right_hand_drive\":true}";
+    final String carStr = "Blue Mazda (rhd)";
+    final SerializablePayload car = mapper.readValue(jsonCar, SimpleCar.class);
+
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializerWithComplexCar() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
+    final String carStr = "Blue Mazda [4 cyl petrol]";
+    final SerializablePayload car = mapper.readValue(jsonCar, ComplexCar.class);
+
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializerWithComplexCarLHD() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"right_hand_drive\":false,\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
+    final String carStr = "Blue Mazda (lhd) [4 cyl petrol]";
+    final SerializablePayload car = mapper.readValue(jsonCar, ComplexCar.class);
+
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializerWithComplexCarRHD() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"right_hand_drive\":true,\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
+    final String carStr = "Blue Mazda (rhd) [4 cyl petrol]";
+    final SerializablePayload car = mapper.readValue(jsonCar, ComplexCar.class);
+
+    assertEquals(carStr, car.toString());
   }
 
 }
