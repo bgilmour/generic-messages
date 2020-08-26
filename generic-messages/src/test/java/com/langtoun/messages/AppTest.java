@@ -62,6 +62,7 @@ public class AppTest extends TestCase {
     final String jsonCar1 = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
     final String jsonCar2 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
     final String jsonCar3 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
+    final String jsonCar4 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"price\":1200.0}]}";
     final String jsonEngine = "{\"cylinders\":6,\"fuelType\":\"petrol\"}";
     final String jsonFeature = "{\"name\":\"Bose sound system\",\"price\":1200.0}";
 
@@ -79,6 +80,13 @@ public class AppTest extends TestCase {
       System.out.println("deserialize: jsonFeature(" + jsonFeature + ") -> " + decMessage5);
     } catch (JsonProcessingException e) {
       e.printStackTrace();
+    }
+
+    try {
+      final SerializablePayload decFailure = mapper.readValue(jsonCar4, ComplexCarWithFeatures.class);
+      System.out.println("deserialize: jsonCar4(" + jsonCar4 + ") -> " + decFailure);
+    } catch (IllegalStateException e) {
+      System.out.println("ERROR: " + e.getMessage());
     }
   }
 

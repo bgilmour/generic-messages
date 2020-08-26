@@ -48,7 +48,7 @@ public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayloa
       final SerializablePayload payload = (SerializablePayload) javaType.getRawClass().newInstance();
       return deserializePayload(payload, rootNode, "/", "  ");
     } catch (InstantiationException | IllegalAccessException e) {
-      throw new IllegalArgumentException("unable to de-serialize an instance of " + javaType.getTypeName());
+      throw new IllegalArgumentException("unable to deserialize an instance of " + javaType.getTypeName(), e);
     }
   }
 
@@ -84,7 +84,7 @@ public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayloa
           throw new IllegalStateException(nodePath + fieldName + ": failed to process property");
         }
       } else if (property.isRequired()) {
-
+        throw new IllegalStateException(nodePath + fieldName + ": missing required property");
       } else {
         System.out.println(indent + fieldName + " - optional (not present)");
       }
@@ -133,7 +133,7 @@ public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayloa
             indent + "  ");
       } catch (InstantiationException | IllegalAccessException e) {
         throw new IllegalStateException(
-            nodePath + fieldName + ": failed to instantiate payload object of type: " + valueType.getCanonicalName());
+            nodePath + fieldName + ": failed to instantiate payload object of type: " + valueType.getCanonicalName(), e);
       }
     } else {
       throw new IllegalStateException(
