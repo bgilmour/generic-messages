@@ -8,8 +8,8 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.generic.MessageJsonDeserializer;
-import com.langtoun.messages.generic.MessageJsonSerializer;
+import com.langtoun.messages.generic.PayloadJsonDeserializer;
+import com.langtoun.messages.generic.PayloadJsonSerializer;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.MessageProperty;
 
@@ -17,8 +17,8 @@ import com.langtoun.messages.types.properties.MessageProperty;
  * Surrogate for a generated type that implements {@link SerializablePayload}.
  *
  */
-@JsonSerialize(using = MessageJsonSerializer.class, as = SimpleCar.class)
-@JsonDeserialize(using = MessageJsonDeserializer.class, as = SimpleCar.class)
+@JsonSerialize(using = PayloadJsonSerializer.class, as = SimpleCar.class)
+@JsonDeserialize(using = PayloadJsonDeserializer.class, as = SimpleCar.class)
 public class SimpleCar implements SerializablePayload {
 
   private String colour; // required

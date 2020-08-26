@@ -27,15 +27,15 @@ import com.langtoun.messages.types.properties.ScalarProperty;
  * interface.
  *
  */
-public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayload> implements ContextualDeserializer {
+public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayload> implements ContextualDeserializer {
 
   private JavaType javaType;
 
-  public MessageJsonDeserializer() {
+  public PayloadJsonDeserializer() {
 
   }
 
-  public MessageJsonDeserializer(final JavaType javaType) {
+  public PayloadJsonDeserializer(final JavaType javaType) {
     this.javaType = javaType;
   }
 
@@ -56,7 +56,7 @@ public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayloa
   public JsonDeserializer<?> createContextual(final DeserializationContext context, final BeanProperty property)
       throws JsonMappingException {
     final JavaType javaType = context.getContextualType() != null ? context.getContextualType() : property.getMember().getType();
-    return new MessageJsonDeserializer(javaType);
+    return new PayloadJsonDeserializer(javaType);
   }
 
   private static SerializablePayload deserializePayload(final SerializablePayload payload, final JsonNode root,

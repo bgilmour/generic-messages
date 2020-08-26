@@ -18,7 +18,7 @@ import com.langtoun.messages.types.properties.ScalarProperty;
  * interface.
  *
  */
-public class MessageJsonSerializer extends JsonSerializer<SerializablePayload> {
+public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
 
   @Override
   public void serialize(final SerializablePayload value, final JsonGenerator gen, final SerializerProvider serializers)
