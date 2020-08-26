@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.util.List;
 
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.ListProperty;
@@ -18,23 +16,16 @@ import com.langtoun.messages.types.properties.ScalarProperty;
  * interface.
  *
  */
-public class MessageJsonSerializer extends JsonSerializer<Message<SerializablePayload>> {
-
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-  static {
-    // replace with configuration appropriate to serialization
-    OBJECT_MAPPER.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-  }
+public class MessageJsonSerializer extends JsonSerializer<SerializablePayload> {
 
   @Override
-  public void serialize(final Message<SerializablePayload> value, final JsonGenerator gen, final SerializerProvider serializers)
+  public void serialize(final SerializablePayload value, final JsonGenerator gen, final SerializerProvider serializers)
       throws IOException {
-    serialize(value.getPayload(), gen, serializers);
+    serializePayload(value, gen, serializers);
   }
 
-  private static void serialize(final SerializablePayload payload, final JsonGenerator gen, final SerializerProvider serializers)
-      throws IOException {
+  private static void serializePayload(final SerializablePayload payload, final JsonGenerator gen,
+      final SerializerProvider serializers) throws IOException {
     if (payload != null) {
       gen.writeStartObject();
       for (final MessageProperty property : payload.getProperties()) {
@@ -46,7 +37,7 @@ public class MessageJsonSerializer extends JsonSerializer<Message<SerializablePa
           final Object propertyValue = scalarProperty.getGetter().get();
           if (propertyValue instanceof SerializablePayload) {
             gen.writeFieldName(scalarProperty.getJsonName());
-            serialize((SerializablePayload) propertyValue, gen, serializers);
+            serializePayload((SerializablePayload) propertyValue, gen, serializers);
           } else {
             writeScalarValue(property.getJsonName(), propertyValue, property.isRequired(), gen, serializers);
           }
@@ -71,7 +62,7 @@ public class MessageJsonSerializer extends JsonSerializer<Message<SerializablePa
   private static void writeScalarValue(final Object value, final JsonGenerator gen, final SerializerProvider serializers)
       throws IOException {
     if (value instanceof SerializablePayload) {
-      serialize((SerializablePayload) value, gen, serializers);
+      serializePayload((SerializablePayload) value, gen, serializers);
     } else if (value instanceof String) {
       gen.writeString((String) value);
     } else if (value instanceof Integer) {
