@@ -1,7 +1,5 @@
 package com.langtoun.messages.types.gen.cars;
 
-import static com.langtoun.messages.types.properties.ScalarProperty.newScalarProperty;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -12,6 +10,7 @@ import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.PayloadProperty;
+import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
@@ -21,11 +20,11 @@ import com.langtoun.messages.types.properties.PayloadProperty;
 @JsonDeserialize(using = PayloadJsonDeserializer.class, as = CarFeature.class)
 public class CarFeature implements SerializablePayload {
 
-  private String name;
-  private Double price;
+  private String name; // required
+  private Double price; // optional
 
   public CarFeature() {
-
+    // do nothing
   }
 
   public CarFeature(final String name, final Double price) {
@@ -43,9 +42,11 @@ public class CarFeature implements SerializablePayload {
 
   @Override
   public List<PayloadProperty> getProperties() {
-    return new ArrayList<>(
-        Arrays.asList(newScalarProperty("name", "name", "name", true, () -> getName(), o -> setName((String) o), String.class),
-            newScalarProperty("price", "price", "price", false, () -> getPrice(), o -> setPrice((Double) o), Double.class)));
+    return new ArrayList<>(Arrays.asList(
+        ScalarProperty.Builder.newBuilder("name", "name", "name", true, String.class).addGetter(() -> getName())
+            .addSetter(o -> setName((String) o)).build(),
+        ScalarProperty.Builder.newBuilder("price", "price", "price", false, Double.class).addGetter(() -> getPrice())
+            .addSetter(o -> setPrice((Double) o)).build()));
   }
 
   @Override

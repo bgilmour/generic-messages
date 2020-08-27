@@ -1,7 +1,5 @@
 package com.langtoun.messages.types.gen.cars;
 
-import static com.langtoun.messages.types.properties.ScalarProperty.newScalarProperty;
-
 import java.util.List;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -10,6 +8,7 @@ import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.PayloadProperty;
+import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
@@ -22,7 +21,7 @@ public class ComplexCar extends SimpleCar {
   private CarEngine engine; // required
 
   public ComplexCar() {
-
+    // do nothing
   }
 
   public ComplexCar(final String colour, final String type, final Boolean rightHandDrive, final CarEngine engine) {
@@ -37,8 +36,8 @@ public class ComplexCar extends SimpleCar {
   @Override
   public List<PayloadProperty> getProperties() {
     final List<PayloadProperty> properties = super.getProperties();
-    properties.add(
-        newScalarProperty("engine", "engine", "engine", true, () -> getEngine(), o -> setEngine((CarEngine) o), CarEngine.class));
+    properties.add(ScalarProperty.Builder.newBuilder("engine", "engine", "engine", true, CarEngine.class)
+        .addGetter(() -> getEngine()).addSetter(o -> setEngine((CarEngine) o)).build());
     return properties;
   }
 
