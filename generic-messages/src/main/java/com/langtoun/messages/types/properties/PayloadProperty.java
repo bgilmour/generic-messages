@@ -1,6 +1,6 @@
 package com.langtoun.messages.types.properties;
 
-public class MessageProperty {
+public class PayloadProperty {
 
   private final String name;
   private final String jsonName;
@@ -10,7 +10,7 @@ public class MessageProperty {
 
   private final Class<?> valueType;
 
-  protected MessageProperty(final String name, final String jsonName, final String xmlName, final boolean required, final Class<?> valueType) {
+  protected PayloadProperty(final String name, final String jsonName, final String xmlName, final boolean required, final Class<?> valueType) {
     super();
     this.name = name;
     this.jsonName = jsonName;

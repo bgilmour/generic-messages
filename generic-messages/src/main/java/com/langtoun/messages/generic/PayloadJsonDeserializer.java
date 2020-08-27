@@ -19,7 +19,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.ListProperty;
-import com.langtoun.messages.types.properties.MessageProperty;
+import com.langtoun.messages.types.properties.PayloadProperty;
 import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
@@ -27,15 +27,15 @@ import com.langtoun.messages.types.properties.ScalarProperty;
  * interface.
  *
  */
-public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayload> implements ContextualDeserializer {
+public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayload> implements ContextualDeserializer {
 
   private JavaType javaType;
 
-  public MessageJsonDeserializer() {
+  public PayloadJsonDeserializer() {
 
   }
 
-  public MessageJsonDeserializer(final JavaType javaType) {
+  public PayloadJsonDeserializer(final JavaType javaType) {
     this.javaType = javaType;
   }
 
@@ -56,12 +56,12 @@ public class MessageJsonDeserializer extends JsonDeserializer<SerializablePayloa
   public JsonDeserializer<?> createContextual(final DeserializationContext context, final BeanProperty property)
       throws JsonMappingException {
     final JavaType javaType = context.getContextualType() != null ? context.getContextualType() : property.getMember().getType();
-    return new MessageJsonDeserializer(javaType);
+    return new PayloadJsonDeserializer(javaType);
   }
 
   private static SerializablePayload deserializePayload(final SerializablePayload payload, final JsonNode root,
       final String nodePath, final String indent) {
-    for (final MessageProperty property : payload.getProperties()) {
+    for (final PayloadProperty property : payload.getProperties()) {
       // find each property in turn and populate the payload, creating new payload
       // objects as the deserializer walks the node tree
       final String fieldName = property.getJsonName();

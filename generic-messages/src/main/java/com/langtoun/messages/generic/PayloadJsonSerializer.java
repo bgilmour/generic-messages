@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.ListProperty;
-import com.langtoun.messages.types.properties.MessageProperty;
+import com.langtoun.messages.types.properties.PayloadProperty;
 import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
@@ -18,7 +18,7 @@ import com.langtoun.messages.types.properties.ScalarProperty;
  * interface.
  *
  */
-public class MessageJsonSerializer extends JsonSerializer<SerializablePayload> {
+public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
 
   @Override
   public void serialize(final SerializablePayload value, final JsonGenerator gen, final SerializerProvider serializers)
@@ -30,7 +30,7 @@ public class MessageJsonSerializer extends JsonSerializer<SerializablePayload> {
       final SerializerProvider serializers) throws IOException {
     if (payload != null) {
       gen.writeStartObject();
-      for (final MessageProperty property : payload.getProperties()) {
+      for (final PayloadProperty property : payload.getProperties()) {
         if (property instanceof ListProperty) {
           final ListProperty listProperty = (ListProperty) property;
           writeArrayValues(listProperty.getJsonName(), listProperty.getGetter().get(), listProperty.isRequired(), gen, serializers);
