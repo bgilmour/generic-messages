@@ -1,6 +1,7 @@
 package com.langtoun.messages.generic;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -45,9 +46,10 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     System.out.println("deserialize : " + javaType.getTypeName());
     try {
       final JsonNode rootNode = parser.getCodec().readTree(parser);
-      final SerializablePayload payload = (SerializablePayload) javaType.getRawClass().newInstance();
+      final SerializablePayload payload = (SerializablePayload) javaType.getRawClass().getConstructor().newInstance();
       return deserializePayload(payload, rootNode, "/", "  ");
-    } catch (InstantiationException | IllegalAccessException e) {
+    } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
+        | SecurityException e) {
       throw new IllegalArgumentException("unable to deserialize an instance of " + javaType.getTypeName(), e);
     }
   }
@@ -130,9 +132,10 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
       final String nodePath, final String indent) {
     if (SerializablePayload.class.isAssignableFrom(valueType)) {
       try {
-        return deserializePayload((SerializablePayload) valueType.newInstance(), objectNode, nodePath + fieldName + "/",
-            indent + "  ");
-      } catch (InstantiationException | IllegalAccessException e) {
+        return deserializePayload((SerializablePayload) valueType.getConstructor().newInstance(), objectNode,
+            nodePath + fieldName + "/", indent + "  ");
+      } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
+          | SecurityException e) {
         throw new IllegalStateException(
             nodePath + fieldName + ": failed to instantiate payload object of type: " + valueType.getCanonicalName(), e);
       }
