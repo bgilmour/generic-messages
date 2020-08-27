@@ -8,17 +8,17 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.generic.MessageJsonDeserializer;
-import com.langtoun.messages.generic.MessageJsonSerializer;
+import com.langtoun.messages.generic.PayloadJsonDeserializer;
+import com.langtoun.messages.generic.PayloadJsonSerializer;
 import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.MessageProperty;
+import com.langtoun.messages.types.properties.PayloadProperty;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
  *
  */
-@JsonSerialize(using = MessageJsonSerializer.class, as = CarEngine.class)
-@JsonDeserialize(using = MessageJsonDeserializer.class, as = CarEngine.class)
+@JsonSerialize(using = PayloadJsonSerializer.class, as = CarEngine.class)
+@JsonDeserialize(using = PayloadJsonDeserializer.class, as = CarEngine.class)
 public class CarEngine implements SerializablePayload {
 
   private Integer cylinders; // required
@@ -42,7 +42,7 @@ public class CarEngine implements SerializablePayload {
   public void setFuelType(final String fuelType) { this.fuelType = fuelType; }
 
   @Override
-  public List<MessageProperty> getProperties() {
+  public List<PayloadProperty> getProperties() {
     return new ArrayList<>(Arrays.asList(
         newScalarProperty("cylinders", "cylinders", "cylinders", true, () -> getCylinders(), o -> setCylinders((Integer) o),
             Integer.class),

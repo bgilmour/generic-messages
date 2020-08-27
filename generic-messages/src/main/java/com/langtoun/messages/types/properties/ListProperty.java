@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class ListProperty extends MessageProperty {
+public class ListProperty extends PayloadProperty {
 
   private final Supplier<List<Object>> getter;
   private final Consumer<List<Object>> setter;

@@ -3,7 +3,7 @@ package com.langtoun.messages.types.properties;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public class ScalarProperty extends MessageProperty {
+public class ScalarProperty extends PayloadProperty {
 
   private final Supplier<Object> getter;
   private final Consumer<Object> setter;

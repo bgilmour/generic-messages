@@ -8,17 +8,17 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.generic.MessageJsonDeserializer;
-import com.langtoun.messages.generic.MessageJsonSerializer;
+import com.langtoun.messages.generic.PayloadJsonDeserializer;
+import com.langtoun.messages.generic.PayloadJsonSerializer;
 import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.MessageProperty;
+import com.langtoun.messages.types.properties.PayloadProperty;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
  *
  */
-@JsonSerialize(using = MessageJsonSerializer.class, as = SimpleCar.class)
-@JsonDeserialize(using = MessageJsonDeserializer.class, as = SimpleCar.class)
+@JsonSerialize(using = PayloadJsonSerializer.class, as = SimpleCar.class)
+@JsonDeserialize(using = PayloadJsonDeserializer.class, as = SimpleCar.class)
 public class SimpleCar implements SerializablePayload {
 
   private String colour; // required
@@ -48,7 +48,7 @@ public class SimpleCar implements SerializablePayload {
   public void setRightHandDrive(Boolean rightHandDrive) { this.rightHandDrive = rightHandDrive; }
 
   @Override
-  public List<MessageProperty> getProperties() {
+  public List<PayloadProperty> getProperties() {
     return new ArrayList<>(Arrays.asList(
         newScalarProperty("colour", "colour", "colour", true, () -> getColour(), o -> setColour((String) o), String.class),
         newScalarProperty("type", "type", "type", true, () -> getType(), o -> setType((String) o), String.class),
