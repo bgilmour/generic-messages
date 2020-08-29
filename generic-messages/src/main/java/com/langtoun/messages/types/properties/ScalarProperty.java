@@ -1,5 +1,7 @@
 package com.langtoun.messages.types.properties;
 
+import static java.util.Objects.requireNonNull;
+
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -13,6 +15,13 @@ public class ScalarProperty extends PayloadProperty {
     super(name, jsonName, xmlName, required, valueType);
   }
 
+  protected ScalarProperty(final ScalarProperty property) {
+    this(property.getName(), property.getJsonName(), property.getXmlName(), property.isRequired(), property.getValueType());
+    this.getter = requireNonNull(property.getter, "scalar property getter cannot be null");
+    this.setter = requireNonNull(property.setter, "scalar property setter cannot be null");
+    super.setTypeEncoding(property.getTypeEncoding());
+  }
+
   public Supplier<Object> getGetter() { return getter; }
 
   public Consumer<Object> getSetter() { return setter; }
@@ -24,7 +33,7 @@ public class ScalarProperty extends PayloadProperty {
 
   public static class Builder {
 
-    private static ScalarProperty property;
+    private ScalarProperty property; // partially complete object
 
     private Builder(final String name, final String jsonName, final String xmlName, final boolean required, Class<?> valueType) {
       property = new ScalarProperty(name, jsonName, xmlName, required, valueType);
@@ -45,11 +54,13 @@ public class ScalarProperty extends PayloadProperty {
       return this;
     }
 
-    public ScalarProperty build() {
-      assert property.getter != null;
-      assert property.setter != null;
+    public Builder typeEncoding(final String typeEncoding) {
+      property.setTypeEncoding(typeEncoding);
+      return this;
+    }
 
-      return property;
+    public ScalarProperty build() {
+      return new ScalarProperty(property);
     }
 
   }

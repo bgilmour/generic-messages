@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
+import com.langtoun.messages.types.CustomEncodingContext;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.PayloadProperty;
 import com.langtoun.messages.types.properties.ScalarProperty;
@@ -22,6 +23,8 @@ public class CarFeature implements SerializablePayload {
 
   private String name; // required
   private Double price; // optional
+
+  private CustomEncodingContext context; // ignore
 
   public CarFeature() {
     // do nothing
@@ -50,7 +53,20 @@ public class CarFeature implements SerializablePayload {
   }
 
   @Override
+  public CustomEncodingContext getCustomEncodingContext() {
+    if (context == null) {
+      return DEFAULT_CONTEXT;
+    }
+    return context;
+  }
+
+  public void setCustomEncodingContext(final CustomEncodingContext context) { this.context = context; }
+
+  @Override
   public String toString() {
+    if (getCustomEncodingContext().usesCustomEncoder()) {
+      return PayloadJsonSerializer.serializeCustomEncoding(this);
+    }
     return name + (price != null ? " @ " + price : "");
   }
 

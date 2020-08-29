@@ -41,6 +41,13 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
   }
 
   @Override
+  public JsonDeserializer<?> createContextual(final DeserializationContext context, final BeanProperty property)
+      throws JsonMappingException {
+    final JavaType javaType = context.getContextualType() != null ? context.getContextualType() : property.getMember().getType();
+    return new PayloadJsonDeserializer(javaType);
+  }
+
+  @Override
   public SerializablePayload deserialize(final JsonParser parser, final DeserializationContext context)
       throws IOException, JsonProcessingException {
     System.out.println("deserialize : " + javaType.getTypeName());
@@ -52,13 +59,6 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
         | SecurityException e) {
       throw new IllegalArgumentException("unable to deserialize an instance of " + javaType.getTypeName(), e);
     }
-  }
-
-  @Override
-  public JsonDeserializer<?> createContextual(final DeserializationContext context, final BeanProperty property)
-      throws JsonMappingException {
-    final JavaType javaType = context.getContextualType() != null ? context.getContextualType() : property.getMember().getType();
-    return new PayloadJsonDeserializer(javaType);
   }
 
   private static SerializablePayload deserializePayload(final SerializablePayload payload, final JsonNode root,

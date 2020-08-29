@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
+import com.langtoun.messages.types.CustomEncodingContext;
 import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.types.properties.ListProperty;
 import com.langtoun.messages.types.properties.PayloadProperty;
@@ -44,13 +45,19 @@ public class ComplexCarWithFeatures extends ComplexCar {
   public List<PayloadProperty> getProperties() {
     final List<PayloadProperty> properties = super.getProperties();
     properties.add(ListProperty.Builder.newBuilder("features", "features", "features", false)
-        .addGetter(() -> features != null ? features.stream().map(o -> (Object) o).collect(Collectors.toList()) : new ArrayList<>())
-        .addSetter(l -> l.stream().map(o -> (CarFeature) o).forEach(o -> features.add(o))).addItemType(CarFeature.class).build());
+        .getter(() -> features != null ? features.stream().map(o -> (Object) o).collect(Collectors.toList()) : new ArrayList<>())
+        .setter(l -> l.stream().map(o -> (CarFeature) o).forEach(o -> features.add(o))).itemType(CarFeature.class).build());
     return properties;
   }
 
   @Override
+  public CustomEncodingContext getCustomEncodingContext() { return DEFAULT_CONTEXT; }
+
+  @Override
   public String toString() {
+    if (getCustomEncodingContext().usesCustomEncoder()) {
+      return PayloadJsonSerializer.serializeCustomEncoding(this);
+    }
     return super.toString() + " with " + features + "]";
   }
 

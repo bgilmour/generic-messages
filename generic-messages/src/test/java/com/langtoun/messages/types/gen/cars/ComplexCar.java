@@ -20,13 +20,22 @@ public class ComplexCar extends SimpleCar {
 
   private CarEngine engine; // required
 
+  private List<PayloadProperty> properties;
+
   public ComplexCar() {
-    // do nothing
+    initProperties();
   }
 
   public ComplexCar(final String colour, final String type, final Boolean rightHandDrive, final CarEngine engine) {
     super(colour, type, rightHandDrive);
     this.engine = engine;
+    initProperties();
+  }
+
+  private void initProperties() {
+    properties = super.getProperties();
+    properties.add(ScalarProperty.Builder.newBuilder("engine", "engine", "engine", true, CarEngine.class)
+        .addGetter(() -> getEngine()).addSetter(o -> setEngine((CarEngine) o)).build());
   }
 
   public CarEngine getEngine() { return engine; }
@@ -34,15 +43,19 @@ public class ComplexCar extends SimpleCar {
   public void setEngine(final CarEngine engine) { this.engine = engine; }
 
   @Override
-  public List<PayloadProperty> getProperties() {
-    final List<PayloadProperty> properties = super.getProperties();
-    properties.add(ScalarProperty.Builder.newBuilder("engine", "engine", "engine", true, CarEngine.class)
-        .addGetter(() -> getEngine()).addSetter(o -> setEngine((CarEngine) o)).build());
-    return properties;
+  public List<PayloadProperty> getProperties() { return properties; }
+
+  // TODO: remove for generated types - complete hack for the development
+  // environment
+  public void setPropertyTypeEncoding(int index, String typeEncoding) {
+    properties.get(index).setTypeEncoding(typeEncoding);
   }
 
   @Override
   public String toString() {
+    if (getCustomEncodingContext().usesCustomEncoder()) {
+      return PayloadJsonSerializer.serializeCustomEncoding(this);
+    }
     return super.toString() + " [" + engine + "]";
   }
 
