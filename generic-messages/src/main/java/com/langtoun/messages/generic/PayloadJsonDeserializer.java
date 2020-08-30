@@ -1,10 +1,12 @@
 package com.langtoun.messages.generic;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -18,10 +20,9 @@ import com.fasterxml.jackson.databind.deser.ContextualDeserializer;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
+import com.langtoun.messages.annotations.TypeProperty;
 import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.ListProperty;
-import com.langtoun.messages.types.properties.PayloadProperty;
-import com.langtoun.messages.types.properties.ScalarProperty;
+import com.langtoun.messages.util.SerializationUtil;
 
 /**
  * JSON deserializer for types that implement the {@link SerializablePayload}
@@ -57,37 +58,38 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
       return deserializePayload(payload, rootNode, "/", "  ");
     } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
         | SecurityException e) {
-      throw new IllegalArgumentException("unable to deserialize an instance of " + javaType.getTypeName(), e);
+      throw new IllegalArgumentException(String.format("unable to deserialize an instance of type[%s]", javaType.getTypeName()), e);
     }
   }
 
   private static SerializablePayload deserializePayload(final SerializablePayload payload, final JsonNode root,
       final String nodePath, final String indent) {
-    for (final PayloadProperty property : payload.getProperties()) {
+    for (final Entry<Field, TypeProperty> fieldProperty : SerializationUtil.getFieldProperties(payload).entrySet()) {
+      final Field field = fieldProperty.getKey();
+      final TypeProperty property = fieldProperty.getValue();
       // find each property in turn and populate the payload, creating new payload
       // objects as the deserializer walks the node tree
-      final String fieldName = property.getJsonName();
-      final Class<?> valueType = property.getValueType();
-      final JsonNode field = root.findValue(fieldName);
+      final String fieldName = property.jsonName();
+      final Class<?> fieldType = field.getType();
+      final JsonNode jsonField = root.findValue(property.jsonName());
       if (field != null) {
-        if (property instanceof ListProperty) {
-          if (field instanceof ArrayNode) {
+        if (List.class.isAssignableFrom(fieldType)) {
+          if (jsonField instanceof ArrayNode) {
             System.out.println(indent + fieldName + "[]");
-            final ListProperty listProperty = (ListProperty) property;
-            listProperty.getSetter().accept(readArrayValues((ArrayNode) field, listProperty, nodePath, indent + "  "));
+            SerializationUtil.setValue(payload, readArrayValues((ArrayNode) jsonField, field, property, nodePath, indent + "  "),
+                field);
           } else {
-            throw new IllegalStateException(nodePath + fieldName + ": failed to process list property");
+            throw new IllegalStateException(String.format("%s%s: failed to process list property for type[%s], field[%s]", nodePath,
+                fieldName, payload.getClass().getTypeName(), field.getName()));
           }
-        } else if (property instanceof ScalarProperty) {
-          final ScalarProperty scalarProperty = (ScalarProperty) property;
-          // deserialize the scalar value (may be simple or complex)
-          scalarProperty.getSetter().accept(readScalarValue(field, fieldName, valueType, nodePath, indent));
         } else {
-          throw new IllegalStateException(nodePath + fieldName + ": failed to process property");
+          // deserialize the scalar value (may be simple or complex)
+          SerializationUtil.setValue(payload, readScalarValue(jsonField, fieldName, field, property, nodePath, indent), field);
         }
-      } else if (property.isRequired()) {
+      } else if (property.required()) {
         System.out.println(indent + fieldName + " - required (not present)");
-        throw new IllegalStateException(nodePath + fieldName + ": missing required property");
+        throw new IllegalStateException(String.format("%s%s: missing required property for type[%s], field[%s]", nodePath,
+            fieldName, payload.getClass().getTypeName(), field.getName()));
       } else {
         System.out.println(indent + fieldName + " - optional (not present)");
       }
@@ -95,10 +97,9 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     return payload;
   }
 
-  private static List<Object> readArrayValues(final ArrayNode arrayNode, final ListProperty property, final String nodePath,
-      final String indent) {
-    final String fieldName = property.getJsonName();
-    final Class<?> itemType = property.getItemType();
+  private static List<Object> readArrayValues(final ArrayNode arrayNode, final Field field, final TypeProperty property,
+      final String nodePath, final String indent) {
+    final String fieldName = property.jsonName();
     final Iterator<JsonNode> iter = arrayNode.elements();
     if (iter.hasNext()) {
       int i = 0;
@@ -106,7 +107,7 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
       while (iter.hasNext()) {
         final JsonNode node = iter.next();
         final String itemName = fieldName + "[" + i + "]";
-        items.add(readScalarValue(node, itemName, itemType, nodePath, indent));
+        items.add(readScalarValue(node, itemName, field, property, nodePath, indent));
         i++;
       }
       return items;
@@ -114,22 +115,24 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     return null;
   }
 
-  private static Object readScalarValue(final JsonNode node, final String fieldName, final Class<?> valueType,
-      final String nodePath, final String indent) {
+  private static Object readScalarValue(final JsonNode node, final String fieldName, Field field, TypeProperty property,
+      final Class<?> valueType, final String nodePath, final String indent) {
     if (node instanceof ObjectNode) {
       System.out.println(indent + fieldName + "{}");
       return readComplexValue((ObjectNode) node, fieldName, valueType, nodePath, indent);
     } else if (node instanceof ValueNode) {
       System.out.println(indent + fieldName);
       final ValueNode valueNode = (ValueNode) node;
-      return readSimpleValue(valueNode, fieldName, valueType);
+      return readSimpleValue(valueNode, fieldName);
     } else {
-      throw new IllegalStateException(nodePath + fieldName + ": failed to process scalar property");
+      throw new IllegalStateException(
+          String.format("%s%s: failed to process scalar property for type[%s], field[%s]", nodePath, fieldName));
     }
   }
 
-  private static Object readComplexValue(final ObjectNode objectNode, final String fieldName, final Class<?> valueType,
-      final String nodePath, final String indent) {
+  private static Object readComplexValue(final ObjectNode objectNode, final String fieldName, Field field, final String nodePath,
+      final String indent) {
+    final Class<?> valueType = field.getType();
     if (SerializablePayload.class.isAssignableFrom(valueType)) {
       try {
         return deserializePayload((SerializablePayload) valueType.getConstructor().newInstance(), objectNode,
@@ -137,22 +140,22 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
       } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
           | SecurityException e) {
         throw new IllegalStateException(
-            nodePath + fieldName + ": failed to instantiate payload object of type: " + valueType.getCanonicalName(), e);
+            nodePath + fieldName + "%s%s: failed to instantiate payload object of type: " + valueType.getTypeName(), e);
       }
     } else {
-      throw new IllegalStateException(
-          nodePath + fieldName + ": object node not appropriate for expected property type: " + valueType.getCanonicalName());
+      throw new IllegalStateException(String.format(": object node not appropriate for expected property type[%s], field[%s]",
+          nodePath, fieldName, valueType.getTypeName(), field.getName()));
     }
   }
 
-  private static Object readSimpleValue(final ValueNode valueNode, final String fieldName, final Class<?> valueType) {
+  private static Object readSimpleValue(final ValueNode valueNode, final String fieldName) {
     if (valueNode.isNull()) {
       return null;
-    } else if (valueNode.isIntegralNumber() && Integer.class.isAssignableFrom(valueType)) {
+    } else if (valueNode.isIntegralNumber()) {
       return valueNode.asInt();
-    } else if (valueNode.isFloatingPointNumber() && Double.class.isAssignableFrom(valueType)) {
+    } else if (valueNode.isFloatingPointNumber()) {
       return valueNode.asDouble();
-    } else if (valueNode.isBoolean() && Boolean.class.isAssignableFrom(valueType)) {
+    } else if (valueNode.isBoolean()) {
       return valueNode.asBoolean();
     } else {
       return valueNode.asText();

@@ -2,33 +2,37 @@ package com.langtoun.messages.types.gen.cars;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.langtoun.messages.annotations.CustomTypeEncoding;
 import com.langtoun.messages.annotations.TypeProperty;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
+import com.langtoun.messages.types.FieldEncodingType;
 import com.langtoun.messages.types.SerializablePayload;
 
 /**
- * Surrogate for a generated type that implements {@link SerializablePayload}.
+ * Surrogate for a generated type that implements {@link SerializablePayload}
+ * and is annotated with {@link CustomTypeEncoding} and {@link TypeProperty}.
  *
  */
-@JsonSerialize(using = PayloadJsonSerializer.class, as = SimpleCar.class)
-@JsonDeserialize(using = PayloadJsonDeserializer.class, as = SimpleCar.class)
-public class SimpleCar implements SerializablePayload {
+@JsonSerialize(using = PayloadJsonSerializer.class, as = CustomSimpleCar.class)
+@JsonDeserialize(using = PayloadJsonDeserializer.class, as = CustomSimpleCar.class)
+@CustomTypeEncoding(prefix = "<<<", suffix = ">>>", fieldSep = "|", keyValSep = "=")
+public class CustomSimpleCar implements SerializablePayload {
 
-  @TypeProperty(required = true, jsonName = "colour")
+  @TypeProperty(required = true, originalName = "colour", encoding = FieldEncodingType.JSON)
   private String colour;
 
-  @TypeProperty(required = true, jsonName = "type")
+  @TypeProperty(required = true, originalName = "type", encoding = FieldEncodingType.XML)
   private String type;
 
-  @TypeProperty(jsonName = "rhs")
+  @TypeProperty(originalName = "rightHandDrive", encoding = FieldEncodingType.XML_URLENCODED)
   private Boolean rightHandDrive;
 
-  public SimpleCar() {
+  public CustomSimpleCar() {
     // do nothing
   }
 
-  public SimpleCar(final String colour, final String type, final Boolean rightHandDrive) {
+  public CustomSimpleCar(final String colour, final String type, final Boolean rightHandDrive) {
     this.colour = colour;
     this.type = type;
     this.rightHandDrive = rightHandDrive;
@@ -48,7 +52,7 @@ public class SimpleCar implements SerializablePayload {
 
   @Override
   public String toString() {
-    return colour + " " + type + (rightHandDrive == null ? "" : rightHandDrive ? " (rhd)" : " (lhd)");
+    return PayloadJsonSerializer.serializeCustomEncoding(this);
   }
 
 }

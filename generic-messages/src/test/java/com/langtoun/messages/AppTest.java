@@ -48,6 +48,10 @@ public class AppTest extends TestCase {
     return new TestSuite(AppTest.class);
   }
 
+  public void testCustomCar() throws IOException {
+
+  }
+
   public void testPlayground() throws IOException {
     System.out.println("---- PROPERTIES (SCALAR) ----");
     try {

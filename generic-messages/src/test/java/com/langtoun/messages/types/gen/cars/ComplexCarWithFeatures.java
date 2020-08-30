@@ -2,16 +2,13 @@ package com.langtoun.messages.types.gen.cars;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.langtoun.messages.annotations.TypeProperty;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.types.CustomEncodingContext;
 import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.ListProperty;
-import com.langtoun.messages.types.properties.PayloadProperty;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
@@ -21,7 +18,8 @@ import com.langtoun.messages.types.properties.PayloadProperty;
 @JsonDeserialize(using = PayloadJsonDeserializer.class, as = ComplexCarWithFeatures.class)
 public class ComplexCarWithFeatures extends ComplexCar {
 
-  private final List<CarFeature> features = new ArrayList<>(); // optional
+  @TypeProperty(required = true, jsonName = "features")
+  private final List<CarFeature> features = new ArrayList<>();
 
   public ComplexCarWithFeatures() {
     // do nothing
@@ -42,22 +40,7 @@ public class ComplexCarWithFeatures extends ComplexCar {
   }
 
   @Override
-  public List<PayloadProperty> getProperties() {
-    final List<PayloadProperty> properties = super.getProperties();
-    properties.add(ListProperty.Builder.newBuilder("features", "features", "features", false)
-        .getter(() -> features != null ? features.stream().map(o -> (Object) o).collect(Collectors.toList()) : new ArrayList<>())
-        .setter(l -> l.stream().map(o -> (CarFeature) o).forEach(o -> features.add(o))).itemType(CarFeature.class).build());
-    return properties;
-  }
-
-  @Override
-  public CustomEncodingContext getCustomEncodingContext() { return DEFAULT_CONTEXT; }
-
-  @Override
   public String toString() {
-    if (getCustomEncodingContext().usesCustomEncoder()) {
-      return PayloadJsonSerializer.serializeCustomEncoding(this);
-    }
     return super.toString() + " with " + features + "]";
   }
 

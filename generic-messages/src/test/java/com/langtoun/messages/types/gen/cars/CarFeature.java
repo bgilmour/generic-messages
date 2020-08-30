@@ -1,17 +1,11 @@
 package com.langtoun.messages.types.gen.cars;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.langtoun.messages.annotations.TypeProperty;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.types.CustomEncodingContext;
 import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.PayloadProperty;
-import com.langtoun.messages.types.properties.ScalarProperty;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
@@ -21,10 +15,11 @@ import com.langtoun.messages.types.properties.ScalarProperty;
 @JsonDeserialize(using = PayloadJsonDeserializer.class, as = CarFeature.class)
 public class CarFeature implements SerializablePayload {
 
-  private String name; // required
-  private Double price; // optional
+  @TypeProperty(required = true, jsonName = "name")
+  private String name;
 
-  private CustomEncodingContext context; // ignore
+  @TypeProperty(required = true, jsonName = "price")
+  private Double price;
 
   public CarFeature() {
     // do nothing
@@ -44,29 +39,7 @@ public class CarFeature implements SerializablePayload {
   public void setPrice(final Double price) { this.price = price; }
 
   @Override
-  public List<PayloadProperty> getProperties() {
-    return new ArrayList<>(Arrays.asList(
-        ScalarProperty.Builder.newBuilder("name", "name", "name", true, String.class).addGetter(() -> getName())
-            .addSetter(o -> setName((String) o)).build(),
-        ScalarProperty.Builder.newBuilder("price", "price", "price", false, Double.class).addGetter(() -> getPrice())
-            .addSetter(o -> setPrice((Double) o)).build()));
-  }
-
-  @Override
-  public CustomEncodingContext getCustomEncodingContext() {
-    if (context == null) {
-      return DEFAULT_CONTEXT;
-    }
-    return context;
-  }
-
-  public void setCustomEncodingContext(final CustomEncodingContext context) { this.context = context; }
-
-  @Override
   public String toString() {
-    if (getCustomEncodingContext().usesCustomEncoder()) {
-      return PayloadJsonSerializer.serializeCustomEncoding(this);
-    }
     return name + (price != null ? " @ " + price : "");
   }
 
