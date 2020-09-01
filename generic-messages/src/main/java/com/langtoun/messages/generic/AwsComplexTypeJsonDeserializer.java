@@ -10,7 +10,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -242,7 +241,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
      * check and consume the prefix
      */
     if (!typeEncoding.prefix().isEmpty()) {
-      remaining = consumeRequiredTokenAtStart(remaining, typeEncoding.prefix(), () -> {
+      remaining = SerializationUtil.consumeRequiredTokenAtStart(remaining, typeEncoding.prefix(), () -> {
         return String.format("encoded[%s] must have prefix[%s]", value.getClass().getTypeName(), typeEncoding.prefix());
       });
     }
@@ -250,7 +249,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
      * check and consume the suffix
      */
     if (!typeEncoding.suffix().isEmpty()) {
-      remaining = consumeRequiredTokenAtEnd(remaining, typeEncoding.suffix(), () -> {
+      remaining = SerializationUtil.consumeRequiredTokenAtEnd(remaining, typeEncoding.suffix(), () -> {
         return String.format("encoded[%s] must have suffix[%s]", value.getClass().getTypeName(), typeEncoding.suffix());
       });
     }
@@ -385,20 +384,6 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
 //      } // end of ignoredField
     }
     return value;
-  }
-
-  private static String consumeRequiredTokenAtStart(final String encoded, final String token, Supplier<String> exceptionMessage) {
-    if (encoded.startsWith(token)) {
-      return encoded.substring(token.length());
-    }
-    throw new IllegalStateException(exceptionMessage.get());
-  }
-
-  private static String consumeRequiredTokenAtEnd(final String encoded, final String token, Supplier<String> exceptionMessage) {
-    if (encoded.endsWith(token)) {
-      return encoded.substring(0, encoded.length() - token.length());
-    }
-    throw new IllegalStateException(exceptionMessage.get());
   }
 
 }
