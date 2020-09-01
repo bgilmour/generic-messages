@@ -25,6 +25,13 @@ public @interface TypeProperty {
   boolean required() default false;
 
   /**
+   * Determines whether the field is to be treated as sensitive data.
+   * 
+   * @return {@code true} if the field is sensitive, otherwise {@code false}
+   */
+  boolean isSensitive() default false;
+
+  /**
    * The name of the field as it should appear in a JSON serialization.
    * 
    * @return the JSON property name

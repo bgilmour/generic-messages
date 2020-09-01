@@ -6,7 +6,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
 
-import com.langtoun.messages.types.CustomTypeEncoder;
+import com.langtoun.messages.types.CustomTypeCodec;
 
 /**
  * An annotation that marks a type as being subject to custom serialization /
@@ -52,15 +52,16 @@ public @interface CustomTypeEncoding {
   String suffix() default "";
 
   /**
-   * The string that will be used to separate the fields in a custom type
-   * encoding. If no field separator is specified then it's still possible to
-   * serialize the type but deserialization isn't possible without deeper
-   * knowledge of the encoding.
+   * An array containing strings that are deemed to be valid field separators for
+   * this encoding. If no field separators are specified then it's still possible
+   * to serialize the type but deserialization isn't possible without deeper
+   * knowledge of the encoding. If multiple field separators are specified then
+   * the first in the list will be chosen when encoding a field for serialization.
    * 
    * @return the custom type encoding field separator, or an empty string if there
    *         is no field separator
    */
-  String fieldSep() default "";
+  String[] fieldSep() default {};
 
   /**
    * The string that will prefix a custom type encoding.
@@ -70,9 +71,9 @@ public @interface CustomTypeEncoding {
   String keyValSep() default "";
 
   /**
-   * The string that will prefix a custom type encoding.
+   * The custom codec that should be used for encoding and decoding the type.
    * 
-   * @return the custom type encoding prefix
+   * @return the custom type code
    */
-  CustomTypeEncoder encoder() default CustomTypeEncoder.STD;
+  CustomTypeCodec codec() default CustomTypeCodec.STD;
 }

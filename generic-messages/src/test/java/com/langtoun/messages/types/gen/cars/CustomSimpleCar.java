@@ -3,11 +3,13 @@ package com.langtoun.messages.types.gen.cars;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
+import com.langtoun.messages.annotations.FieldOrder;
+import com.langtoun.messages.annotations.TypeDefinition;
 import com.langtoun.messages.annotations.TypeProperty;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
+import com.langtoun.messages.generic.SerializablePayload;
 import com.langtoun.messages.types.FieldEncodingType;
-import com.langtoun.messages.types.SerializablePayload;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}
@@ -16,7 +18,16 @@ import com.langtoun.messages.types.SerializablePayload;
  */
 @JsonSerialize(using = PayloadJsonSerializer.class, as = CustomSimpleCar.class)
 @JsonDeserialize(using = PayloadJsonDeserializer.class, as = CustomSimpleCar.class)
-@CustomTypeEncoding(prefix = "<<<", suffix = ">>>", fieldSep = "|", keyValSep = "=")
+// @Format-Off
+@TypeDefinition(
+  fieldOrder = @FieldOrder({
+    "colour", "type", "rightHandDrive"
+  }),
+  encoding = @CustomTypeEncoding(
+    prefix = "<<<", suffix = ">>>", fieldSep = "|", keyValSep = "="
+  )
+)
+// @Format-On
 public class CustomSimpleCar implements SerializablePayload {
 
   @TypeProperty(required = true, originalName = "colour", encoding = FieldEncodingType.JSON)
@@ -25,7 +36,7 @@ public class CustomSimpleCar implements SerializablePayload {
   @TypeProperty(required = true, originalName = "type", encoding = FieldEncodingType.XML)
   private String type;
 
-  @TypeProperty(originalName = "rightHandDrive", encoding = FieldEncodingType.XML_URLENCODED)
+  @TypeProperty(originalName = "right_hand_drive", encoding = FieldEncodingType.XML_URLENCODED)
   private Boolean rightHandDrive;
 
   public CustomSimpleCar() {

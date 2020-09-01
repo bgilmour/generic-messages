@@ -2,10 +2,12 @@ package com.langtoun.messages.types.gen.cars;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.langtoun.messages.annotations.FieldOrder;
+import com.langtoun.messages.annotations.TypeDefinition;
 import com.langtoun.messages.annotations.TypeProperty;
 import com.langtoun.messages.generic.PayloadJsonDeserializer;
 import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.types.SerializablePayload;
+import com.langtoun.messages.generic.SerializablePayload;
 
 /**
  * Surrogate for a generated type that implements {@link SerializablePayload}.
@@ -13,6 +15,13 @@ import com.langtoun.messages.types.SerializablePayload;
  */
 @JsonSerialize(using = PayloadJsonSerializer.class, as = ComplexCar.class)
 @JsonDeserialize(using = PayloadJsonDeserializer.class, as = ComplexCar.class)
+// @Format-Off
+@TypeDefinition(
+  fieldOrder = @FieldOrder({
+    "colour", "type", "rightHandDrive", "engine"
+  })
+)
+// @Format-On
 public class ComplexCar extends SimpleCar {
 
   @TypeProperty(required = true, jsonName = "engine")

@@ -6,10 +6,8 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -17,6 +15,7 @@ import javax.xml.bind.Marshaller;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.tuple.Pair;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,10 +23,10 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
+import com.langtoun.messages.annotations.TypeDefinition;
 import com.langtoun.messages.annotations.TypeProperty;
-import com.langtoun.messages.types.CustomTypeEncoder;
+import com.langtoun.messages.types.CustomTypeCodec;
 import com.langtoun.messages.types.FieldEncodingType;
-import com.langtoun.messages.types.SerializablePayload;
 import com.langtoun.messages.util.SerializationUtil;
 
 /**
@@ -39,54 +38,86 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
 
   private static final ObjectMapper objectMapper = new ObjectMapper();
 
-  private static final Map<Class<?>, JAXBContext> jaxbContexts = new HashMap<>();
-
   @Override
   public void serialize(final SerializablePayload payload, final JsonGenerator gen, final SerializerProvider serializers)
       throws IOException {
     serialize(payload, gen);
   }
 
-  private static void serialize(final SerializablePayload payload, final JsonGenerator gen) throws IOException {
-    final CustomTypeEncoding typeEncoding = SerializationUtil.getCustomTypeEncoding(payload);
-    if (typeEncoding != null) {
-      gen.writeString(serializeCustomEncoding(payload, typeEncoding));
+  private static void serialize(final SerializablePayload value, final JsonGenerator gen) throws IOException {
+    /*
+     * check that the type is annotated with TypeDefinition
+     */
+    final TypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
+    if (typeDefinition != null) {
+      if (SerializationUtil.usesCustomTypeEncoding(typeDefinition.encoding())) {
+        gen.writeString(serializeCustomEncoding(value, typeDefinition));
+      } else {
+        serializePayload(value, typeDefinition, gen);
+      }
     } else {
-      serializePayload(payload, gen);
+      throw new IllegalArgumentException(
+          String.format("type[%s] must be annotated with @TypeDefinition", value.getClass().getTypeName()));
     }
   }
 
   public static String serializeCustomEncoding(final SerializablePayload value) {
-    return serializeCustomEncoding(value, SerializationUtil.getCustomTypeEncoding(value));
+    /*
+     * check that the type is annotated with TypeDefinition
+     */
+    final TypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
+    if (typeDefinition != null) {
+      return serializeCustomEncoding(value, SerializationUtil.getTypeDefinition(value));
+    } else {
+      throw new IllegalArgumentException(
+          String.format("type[%s] must be annotated with @TypeDefinition", value.getClass().getTypeName()));
+    }
   }
 
-  private static String serializeCustomEncoding(final SerializablePayload value, final CustomTypeEncoding typeEncoding) {
+  private static String serializeCustomEncoding(final SerializablePayload value, final TypeDefinition typeDefinition) {
     final StringBuilder encoded = new StringBuilder();
-    if (typeEncoding != null) {
-      if (typeEncoding.encoder() == CustomTypeEncoder.GQL) {
-        // process using the GQL serializer
-        // TODO: implement the GQL serializer
-      } else {
-        // process using the prefix, suffix, field separator, and key / value separator
-        // specified in the annotation
-        serializeCustomEncoding(value, typeEncoding, encoded);
-      }
+    if (typeDefinition.encoding().codec() == CustomTypeCodec.GQL) {
+      /*
+       * process using the GQL serializer
+       */
+      throw new UnsupportedOperationException("TODO: implement the GQL codec"); // TODO: implement the GQL codec
+    } else if (typeDefinition.encoding().codec() == CustomTypeCodec.STD) {
+      /*
+       * process using the prefix, suffix, field separator, and key / value separator
+       * specified in the annotation
+       */
+      serializeCustomEncoding(value, typeDefinition, encoded);
     } else {
-      throw new IllegalStateException("");
+      throw new IllegalArgumentException(String.format("cannot serialize type[%s] with unknown custom codec[%s]",
+          value.getClass().getTypeName(), typeDefinition.encoding().codec().customCodec));
     }
     return encoded.toString();
   }
 
-  private static void serializePayload(final SerializablePayload payload, final JsonGenerator gen) throws IOException {
-    if (payload != null) {
+  private static void serializePayload(final SerializablePayload value, final TypeDefinition typeDefinition,
+      final JsonGenerator gen) throws IOException {
+    if (value != null) {
+      /*
+       * open a new object
+       */
       gen.writeStartObject();
-      for (final Entry<Field, TypeProperty> fieldProperty : SerializationUtil.getFieldProperties(payload).entrySet()) {
+      /*
+       * retrieve the fields annotated with TypeProperty and compute the field order
+       */
+      final Map<String, Pair<Field, TypeProperty>> fieldProperties = SerializationUtil
+          .getHierarchyFieldsWithTypeProperty(value.getClass());
+      final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
+      /*
+       * iterate over the fields to be serialized
+       */
+      for (final String fieldName : fieldOrder) {
+        final Pair<Field, TypeProperty> fieldProperty = fieldProperties.get(fieldName);
         final Field field = fieldProperty.getKey();
         final TypeProperty property = fieldProperty.getValue();
         if (List.class.isAssignableFrom(field.getType())) {
-          writeArrayValues(property.jsonName(), SerializationUtil.getListValue(payload, field), property.required(), gen);
+          writeArrayValues(property.jsonName(), SerializationUtil.getListValue(value, field), property.required(), gen);
         } else {
-          final Object fieldValue = SerializationUtil.getValue(payload, field);
+          final Object fieldValue = SerializationUtil.getValue(value, field);
           if (fieldValue instanceof SerializablePayload) {
             gen.writeFieldName(property.jsonName());
             serialize((SerializablePayload) fieldValue, gen);
@@ -95,6 +126,9 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
           }
         }
       }
+      /*
+       * close the object
+       */
       gen.writeEndObject();
     }
   }
@@ -132,10 +166,14 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
   private static void writeScalarValue(final String fieldName, final Object value, final boolean required, final JsonGenerator gen)
       throws IOException {
     if (value == null && required) {
-      // write a null
+      /*
+       * write a null
+       */
       gen.writeNullField(fieldName);
     } else if (value != null) {
-      // write the value
+      /*
+       * write the value
+       */
       gen.writeFieldName(fieldName);
       writeScalarValue(value, gen);
     }
@@ -158,14 +196,27 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
     }
   }
 
-  private static StringBuilder serializeCustomEncoding(final SerializablePayload payload, final CustomTypeEncoding typeEncoding,
+  private static StringBuilder serializeCustomEncoding(final SerializablePayload value, final TypeDefinition typeDefinition,
       final StringBuilder encoded) {
+    final CustomTypeEncoding typeEncoding = typeDefinition.encoding();
+    /*
+     * write out the prefix if present
+     */
     if (!typeEncoding.prefix().isEmpty()) {
       encoded.append(typeEncoding.prefix());
     }
-
+    /*
+     * encode each field in the order specified in the computed field order
+     */
+    final Map<String, Pair<Field, TypeProperty>> fieldProperties = SerializationUtil
+        .getHierarchyFieldsWithTypeProperty(value.getClass());
+    final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
+    /*
+     * iterate over the fields that are to be encoded
+     */
     int index = 0;
-    for (final Entry<Field, TypeProperty> fieldProperty : SerializationUtil.getFieldProperties(payload).entrySet()) {
+    for (final String fieldName : fieldOrder) {
+      final Pair<Field, TypeProperty> fieldProperty = fieldProperties.get(fieldName);
       final Field field = fieldProperty.getKey();
       final TypeProperty property = fieldProperty.getValue();
       final Class<?> fieldType = field.getType();
@@ -176,10 +227,10 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
       if (SerializablePayload.class.isAssignableFrom(fieldType)) { // --- complex type ---
         final FieldEncodingType fieldEncoding = property.encoding();
         if (fieldEncoding != null) {
-          final Object fieldValue = SerializationUtil.getValue(payload, field);
+          final Object fieldValue = SerializationUtil.getValue(value, field);
           if (fieldEncoding == FieldEncodingType.XML || fieldEncoding == FieldEncodingType.XML_URLENCODED) {
             try {
-              final JAXBContext jaxbContext = getJaxbContextFor(fieldType);
+              final JAXBContext jaxbContext = SerializationUtil.getJaxbContextFor(fieldType);
               final Marshaller marshaller = jaxbContext.createMarshaller();
               marshaller.setProperty(Marshaller.JAXB_FRAGMENT, Boolean.TRUE);
               final StringWriter writer = new StringWriter();
@@ -203,53 +254,55 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
               }
             } catch (JsonProcessingException | UnsupportedEncodingException e) {
               throw new IllegalArgumentException(String.format("unable to serialize an instance of type[%s], field[%s]",
-                  payload.getClass().getTypeName(), field.getName()), e);
+                  value.getClass().getTypeName(), field.getName()), e);
             }
           } else {
             throw new IllegalArgumentException(String.format("unable to serialize an instance of type[%s], field[%s]",
-                payload.getClass().getTypeName(), field.getName()));
+                value.getClass().getTypeName(), field.getName()));
           }
         } else {
           throw new IllegalArgumentException(
               String.format("unable to serialize an instance of type[%s], field[%s] - no encoding defined",
-                  payload.getClass().getTypeName(), field.getName()));
+                  value.getClass().getTypeName(), field.getName()));
         }
       } else { // --- simple type ---
         Object object = null;
         if (repeated) {
-          object = SerializationUtil.getListValue(payload, field);
+          object = SerializationUtil.getListValue(value, field);
         } else {
-          object = SerializationUtil.getValue(payload, field);
+          object = SerializationUtil.getValue(value, field);
         }
         if (object != null) {
           encodedValue = object.toString();
         }
       }
-
-      if (index > 0 && !typeEncoding.fieldSep().isEmpty()) {
-        encoded.append(typeEncoding.fieldSep());
+      /*
+       * write out a fieldSep if present and required
+       */
+      if (index > 0 && typeEncoding.fieldSep().length > 0) {
+        encoded.append(typeEncoding.fieldSep()[0]);
       }
+      /*
+       * if the keyValSep has been specified write out the field name followed by the
+       * keyValSep
+       */
       if (!typeEncoding.keyValSep().isEmpty()) {
         encoded.append(property.originalName()).append(typeEncoding.keyValSep());
       }
+      /*
+       * regardless of the encoding components that were / were not specified, the
+       * encoded value must always be written
+       */
       encoded.append(encodedValue);
       index++;
     }
-
+    /*
+     * write out the suffix if present
+     */
     if (!typeEncoding.suffix().isEmpty()) {
       encoded.append(typeEncoding.suffix());
     }
     return encoded;
-  }
-
-  private static JAXBContext getJaxbContextFor(final Class<?> clazz) {
-    return jaxbContexts.computeIfAbsent(clazz, c -> {
-      try {
-        return JAXBContext.newInstance(c);
-      } catch (final JAXBException e) {
-        throw new IllegalStateException(e);
-      }
-    });
   }
 
 }
