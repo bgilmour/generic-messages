@@ -2,25 +2,32 @@ package com.langtoun.messages.types.gen.cars;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.generic.PayloadJsonDeserializer;
-import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.ListProperty;
-import com.langtoun.messages.types.properties.PayloadProperty;
+import com.langtoun.messages.annotations.FieldOrder;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
+import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 
 /**
- * Surrogate for a generated type that implements {@link SerializablePayload}.
+ * Surrogate for a generated type that extends {@link ComplexCar}.
  *
  */
-@JsonSerialize(using = PayloadJsonSerializer.class, as = ComplexCarWithFeatures.class)
-@JsonDeserialize(using = PayloadJsonDeserializer.class, as = ComplexCarWithFeatures.class)
+@JsonSerialize(using = AwsComplexTypeJsonSerializer.class, as = ComplexCarWithFeatures.class)
+@JsonDeserialize(using = AwsComplexTypeJsonDeserializer.class, as = ComplexCarWithFeatures.class)
+// @Format-Off
+@AwsTypeDefinition(
+  fieldOrder = @FieldOrder({
+    "colour", "type", "rightHandDrive", "engine", "features"
+  })
+)
+// @Format-On
 public class ComplexCarWithFeatures extends ComplexCar {
 
-  private final List<CarFeature> features = new ArrayList<>(); // optional
+  @AwsFieldProperty(required = true, jsonName = "features")
+  private final List<CarFeature> features = new ArrayList<>();
 
   public ComplexCarWithFeatures() {
     // do nothing
@@ -38,15 +45,6 @@ public class ComplexCarWithFeatures extends ComplexCar {
 
   public void addFeature(final CarFeature feature) {
     features.add(feature);
-  }
-
-  @Override
-  public List<PayloadProperty> getProperties() {
-    final List<PayloadProperty> properties = super.getProperties();
-    properties.add(ListProperty.Builder.newBuilder("features", "features", "features", false)
-        .addGetter(() -> features != null ? features.stream().map(o -> (Object) o).collect(Collectors.toList()) : new ArrayList<>())
-        .addSetter(l -> l.stream().map(o -> (CarFeature) o).forEach(o -> features.add(o))).addItemType(CarFeature.class).build());
-    return properties;
   }
 
   @Override

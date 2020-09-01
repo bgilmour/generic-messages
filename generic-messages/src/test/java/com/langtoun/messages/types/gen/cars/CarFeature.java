@@ -1,27 +1,33 @@
 package com.langtoun.messages.types.gen.cars;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.generic.PayloadJsonDeserializer;
-import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.types.SerializablePayload;
-import com.langtoun.messages.types.properties.PayloadProperty;
-import com.langtoun.messages.types.properties.ScalarProperty;
+import com.langtoun.messages.annotations.FieldOrder;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
+import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
+import com.langtoun.messages.types.AwsComplexType;
 
 /**
- * Surrogate for a generated type that implements {@link SerializablePayload}.
+ * Surrogate for a generated type that extends {@link AwsComplexType}.
  *
  */
-@JsonSerialize(using = PayloadJsonSerializer.class, as = CarFeature.class)
-@JsonDeserialize(using = PayloadJsonDeserializer.class, as = CarFeature.class)
-public class CarFeature implements SerializablePayload {
+@JsonSerialize(using = AwsComplexTypeJsonSerializer.class, as = CarFeature.class)
+@JsonDeserialize(using = AwsComplexTypeJsonDeserializer.class, as = CarFeature.class)
+// @Format-Off
+@AwsTypeDefinition(
+  fieldOrder = @FieldOrder({
+    "name", "price"
+    }))
+// @Format-On
+public class CarFeature extends AwsComplexType {
 
-  private String name; // required
-  private Double price; // optional
+  @AwsFieldProperty(required = true, jsonName = "name")
+  private String name;
+
+  @AwsFieldProperty(jsonName = "price")
+  private Double price;
 
   public CarFeature() {
     // do nothing
@@ -39,15 +45,6 @@ public class CarFeature implements SerializablePayload {
   public Double getPrice() { return price; }
 
   public void setPrice(final Double price) { this.price = price; }
-
-  @Override
-  public List<PayloadProperty> getProperties() {
-    return new ArrayList<>(Arrays.asList(
-        ScalarProperty.Builder.newBuilder("name", "name", "name", true, String.class).addGetter(() -> getName())
-            .addSetter(o -> setName((String) o)).build(),
-        ScalarProperty.Builder.newBuilder("price", "price", "price", false, Double.class).addGetter(() -> getPrice())
-            .addSetter(o -> setPrice((Double) o)).build()));
-  }
 
   @Override
   public String toString() {

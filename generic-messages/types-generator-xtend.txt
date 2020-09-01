@@ -1,0 +1,2211 @@
+package com.avaloq.aws.server.compiler
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.avaloq.aws.server.config.AmiWebservicesConfig
+import com.avaloq.aws.server.preprocessor.Expression
+import com.avaloq.aws.server.preprocessor.PreprocessorService
+import com.avaloq.aws.server.util.DateAdapter
+import java.io.ByteArrayOutputStream
+import java.util.ArrayList
+import java.util.Collection
+import java.util.HashMap
+import java.util.HashSet
+import java.util.List
+import java.util.stream.Collectors
+import java.util.stream.IntStream
+import javax.xml.XMLConstants
+import org.apache.commons.text.StringEscapeUtils
+import org.eclipse.wst.wsdl.Definition
+import org.eclipse.wst.wsdl.Fault
+import org.eclipse.wst.wsdl.MessageReference
+import org.eclipse.wst.wsdl.Operation
+import org.eclipse.wst.wsdl.Part
+import org.eclipse.wst.wsdl.PortType
+import org.eclipse.xsd.XSDComplexTypeContent
+import org.eclipse.xsd.XSDComplexTypeDefinition
+import org.eclipse.xsd.XSDCompositor
+import org.eclipse.xsd.XSDElementDeclaration
+import org.eclipse.xsd.XSDFactory
+import org.eclipse.xsd.XSDModelGroup
+import org.eclipse.xsd.XSDParticle
+import org.eclipse.xsd.XSDSchema
+import org.eclipse.xsd.XSDSchemaContent
+import org.eclipse.xsd.XSDSimpleTypeDefinition
+import org.eclipse.xsd.XSDTypeDefinition
+import org.w3c.dom.Element
+import org.w3c.dom.NodeList
+
+import static extension com.avaloq.aws.server.compiler.GeneratorExtensions.*
+import static extension com.avaloq.aws.server.compiler.JavaExtensions.*
+import static extension com.avaloq.aws.server.compiler.SchemaExtensions.*
+import static extension com.avaloq.aws.server.compiler.WsdlExtensions.*
+
+class TypesGenerator extends Generator {
+  static val Logger LOGGER = LoggerFactory.getLogger(TypesGenerator.getName());
+  static val OBJECT_ENCODING = "$object-encoding"
+  static val OBJECT_ENCODING_SEPARATOR = "$object-encoding-separator"
+  static val XML_NODE = "$xml"
+
+  val requiresValidation = new HashMap<XSDTypeDefinition, Boolean>();
+
+  private def boolean requiresValidation(XSDTypeDefinition td) {
+    var Boolean reqVal = requiresValidation.getOrDefault(td, null);
+    if (reqVal === null) {
+      reqVal = false
+      switch (td) {
+        XSDSimpleTypeDefinition: {
+          return !td.facets.empty
+        }
+
+        XSDComplexTypeDefinition: {
+          // Assume not mutually recursive for now.
+          // Fix later
+          requiresValidation.put(td, reqVal);
+
+          val fields = collectParticles(td)
+          for (field : fields) {
+            val pc = field.content
+            val ed = pc as XSDElementDeclaration
+            val required = isRequired(field)
+            if (required && ed.typeDefinition.isNullable) {
+              reqVal = true;
+            }
+            reqVal = reqVal || requiresValidation(ed.typeDefinition);
+          }
+        }
+      }
+      requiresValidation.put(td, reqVal);
+    }
+    reqVal
+  }
+
+  new(WsdlSource wsdlSource, AmiWebservicesConfig config, PreprocessorService preprocessorService) {
+    super(wsdlSource, config, preprocessorService)
+  }
+
+  // This bit is copied from the wsdl compiler.  Need to factor out common stuff/
+  protected def XSDTypeDefinition createTypeDefinition(Definition definition, XSDFactory xsdFactory, String name,
+                                                       List<MessageReference> contents, boolean includeServerError) {
+    val td = xsdFactory.createXSDComplexTypeDefinition();
+    td.setName(name);
+    td.targetNamespace = definition.targetNamespace
+    val sequenceParticle = xsdFactory.createXSDParticle();
+    val sequence = xsdFactory.createXSDModelGroup();
+    sequence.setCompositor(XSDCompositor.CHOICE_LITERAL);
+
+    sequenceParticle.setContent(sequence);
+    td.setContent(sequenceParticle);
+
+    for (mr : contents) {
+      val part = mr.EMessage.parts.values.get(0) as Part
+      val ed = part.elementDeclaration
+      val ptd = ed.typeDefinition
+      var mrName = ed.name
+      if (mrName.contains("_"))
+        mrName = mrName.toUpperCamelCase;
+      mrName = mrName.toFirstLower;
+
+      val mrElement = xsdFactory.createXSDElementDeclaration();
+      val mrParticle = xsdFactory.createXSDParticle();
+
+      if (includeServerError) {
+        mrParticle.setMinOccurs(0);
+      }
+
+      mrParticle.setContent(mrElement);
+      mrElement.setName(mrName);
+      mrElement.setTypeDefinition(ptd);
+      // Not sure why I need to initialize both...
+      sequence.particles.add(mrParticle);
+      sequence.getContents().add(mrParticle);
+    }
+
+    if (includeServerError) {
+      val mrElement = xsdFactory.createXSDElementDeclaration();
+      val mrParticle = xsdFactory.createXSDParticle();
+      mrParticle.setMinOccurs(0);
+      val simpleType = xsdFactory.createXSDSimpleTypeDefinition();
+      simpleType.setName("Error");
+      mrParticle.setContent(mrElement);
+      mrElement.setName("serverError");
+      mrElement.setTypeDefinition(simpleType);
+      // Not sure why I need to initialize both...
+      sequence.particles.add(mrParticle);
+      sequence.getContents().add(mrParticle)
+    }
+
+    td
+  }
+
+  def List<XSDTypeDefinition> createRequestResponseTypes(Definition definition, XSDSchema schema) {
+    val types = new ArrayList<XSDTypeDefinition>
+    for (portType : definition.portTypes.values as Collection<PortType>) {
+      for (operation : portType.operations as List<Operation>) {
+        val operationName = operation.getOpNameLowerSnake
+        val reqTypeName = "req_" + operationName
+        val rspTypeName = "rsp_" + operationName
+
+        val xsdFactory = XSDFactory.eINSTANCE;
+
+        types.add(createTypeDefinition(definition, xsdFactory, reqTypeName, #[operation.input as MessageReference], false))
+
+        val responseMessages = new ArrayList<MessageReference>()
+        responseMessages.add(operation.output as MessageReference)
+        for (fault: operation.EFaults as List<Fault>) {
+          responseMessages.add(fault as MessageReference)
+        }
+
+        types.add(createTypeDefinition(definition, xsdFactory, rspTypeName, responseMessages, true))
+      }
+    }
+    types
+  }
+
+  def collectFaultTypes(Definition definition) {
+    val elementDeclarations = new HashSet<XSDElementDeclaration>()
+    for (portType : definition.portTypes.values as Collection<PortType>) {
+      for (operation : portType.operations as List<Operation>) {
+        for (fault : operation.EFaults as List<Fault>) {
+          elementDeclarations.add(fault.declaration)
+        }
+      }
+    }
+    elementDeclarations
+  }
+
+  def collectTopLevelTypes(Definition definition) {
+    val elementDeclarations = new HashSet<XSDElementDeclaration>()
+    for (portType : definition.portTypes.values as Collection<PortType>) {
+      for (operation : portType.operations as List<Operation>) {
+        for (part : operation.EInput.EMessage.EParts as List<Part>) {
+          elementDeclarations.add(part.elementDeclaration)
+        }
+        for (part : operation.EOutput.EMessage.EParts as List<Part>) {
+          elementDeclarations.add(part.elementDeclaration)
+        }
+      }
+    }
+    elementDeclarations
+  }
+
+  def List<ImplementationClass> generateTypes() {
+    val List<ImplementationClass> generatedTypes = newArrayList
+    try {
+      for (schema : wsdlSource.schemas) {
+        generatedTypes.addAll(generateTypes(schema, definition))
+      }
+
+      for (o : definition.getETypes().getSchemas()) {
+        val schema = o as XSDSchema;
+        LOGGER.debug("Generate types for {}", schema)
+        generatedTypes.addAll(generateTypes(schema, definition))
+      }
+      for (ed : collectFaultTypes(definition)) {
+        LOGGER.debug("Generate exception type for {}", ed.typeDefinition)
+        generatedTypes.add(generateExceptionTypeClass(ed.typeDefinition, definition));
+      }
+
+      for (o : definition.getETypes().getSchemas()) {
+        val schema = o as XSDSchema;
+        for (td : createRequestResponseTypes(definition, schema)) {
+          val content = generateType(td)
+          val packageName = this.packageNameFrom(td)
+          generatedTypes.add(saveFile(packageName, td.getClassName, content.toString));
+        }
+      }
+
+    } catch (Exception ex) {
+      LOGGER.error("Error generating types:", ex)
+    }
+    return generatedTypes
+  }
+
+  def ImplementationClass saveFile(String packageName, String className, String generatedContent) {
+    val implementationClass = new ImplementationClass()
+    implementationClass.packageName = packageName
+    implementationClass.className = className
+    implementationClass.contents = generatedContent
+    return implementationClass
+  }
+
+  def ImplementationClass generateExceptionTypeClass(XSDTypeDefinition td, Definition definition) {
+    if (td.name === null) {
+      td.name = (td.container as XSDElementDeclaration).name
+    }
+    val content = generateExceptionType(td, definition)
+    val packageName = this.packageNameFrom(td)
+    return saveFile(packageName, getClassName(td.name, "_Exception"), content.toString);
+  }
+
+  def ImplementationClass generateType(XSDTypeDefinition td, Definition definition) {
+    if (td.name === null) {
+      td.name = (td.container as XSDElementDeclaration).name
+    }
+    if (td.targetNamespace === null) {
+      td.targetNamespace = definition.targetNamespace
+    }
+    val content = generateType(td)
+    val packageName = this.packageNameFrom(td)
+    return saveFile(packageName, td.getClassName, content.toString);
+  }
+
+  def ImplementationClassgeneratePortType(PortType portType, Definition definition) {
+    val content = generatePortType(portType, definition)
+    val packageName = this.packageNameFrom(definition.targetNamespace)
+    return saveFile(packageName, portType.getClassName, content.toString);
+  }
+
+
+  // The general pattern will be to create a class for each named type, and then create another class for
+  // each named element that derives from the class generated from the associates type.
+  // However, for elements whose type is an anonymous type we just generate a single class for the element.
+
+
+  private def collectTypeDefinitions(XSDSchemaContent sc, List<XSDTypeDefinition> types) {
+    switch (sc) {
+      XSDElementDeclaration: {
+        if (sc.getAnonymousTypeDefinition !== null) {
+          sc.typeDefinition.name = sc.name
+          types.add(sc.typeDefinition)
+        }
+      }
+      XSDSimpleTypeDefinition: {
+        if ("anySimpleType" != sc.baseTypeDefinition.name)
+          types.add(sc);
+      }
+      XSDComplexTypeDefinition: {
+        types.add(sc);
+      }
+    }
+  }
+
+  def collectTypeDefinitions(XSDSchema schema) {
+    val list = new ArrayList<XSDTypeDefinition>()
+    for (c : schema.contents) {
+      collectTypeDefinitions(c, list);
+    }
+    list
+  }
+
+  def List<ImplementationClass> generateTypes(XSDSchema schema, Definition definition) {
+    val List<XSDTypeDefinition> typeDefinitions = collectTypeDefinitions(schema);
+    val List<ImplementationClass> generatedTypes = newArrayList
+    TypeLifter.liftEmbeddedComplexTypes(typeDefinitions);
+
+    for (td : typeDefinitions) {
+      try {
+        generatedTypes.add(generateType(td, definition))
+      } catch (Exception ex) {
+        LOGGER.error("Unable to generate type for {} in {}", td.name, schema.schemaLocation, ex)
+      }
+    }
+    return generatedTypes
+  }
+
+  static def stackTraceString(Exception ex) {
+    val baos = new ByteArrayOutputStream();
+    LOGGER.error("Exception: ", ex)
+    baos.toString()
+  }
+
+  static def collectParticles(XSDParticle particle) {
+    val pc = particle.content
+    switch pc {
+      XSDModelGroup: {
+        switch pc.compositor {
+          case XSDCompositor.SEQUENCE_LITERAL,
+          case XSDCompositor.CHOICE_LITERAL:
+            pc.particles
+          default:
+            throw new UnsupportedOperationException(pc.compositor.toString)
+        }
+      }
+      XSDElementDeclaration:
+        return #[particle]
+
+      default:
+        throw new UnsupportedOperationException(pc.class.toString)
+    }
+  }
+
+
+  static def collectParticles(XSDComplexTypeContent tc) {
+    switch (tc) {
+      XSDParticle:
+        collectParticles(tc)
+      XSDSimpleTypeDefinition:
+        #[]
+      default:
+        throw new UnsupportedOperationException(tc.class.toString)
+    }
+  }
+
+
+  static def collectParticles(XSDTypeDefinition td) {
+    switch (td) {
+      XSDComplexTypeDefinition:
+        if (td.content !== null)
+          collectParticles(td.content)
+        else
+          #[]
+      default:
+        throw new UnsupportedOperationException(td.class.toString)
+    }
+  }
+
+
+  def flattenParticles(List<XSDParticle> particles, List<XSDParticle> flattened) {
+    for (p : particles) {
+      val pc = p.content
+      switch pc {
+        // XSDModelGroup: should never happen as the flattener will have extractec these into separate classes
+        XSDElementDeclaration: {
+          if (pc.name.startsWith("_")) {
+            val XSDComplexTypeDefinition td = pc.typeDefinition as XSDComplexTypeDefinition
+            flattened.addAll(td.collectParticles.flattenParticles)
+          } else {
+            flattened.add(p)
+          }
+        }
+      }
+    }
+  }
+
+
+  // Flatten out any particles that are choices or sequences constructed by the type lifter
+  def List<XSDParticle> flattenParticles(List<XSDParticle> particles) {
+    val flattened = new ArrayList<XSDParticle>();
+    flattenParticles(particles, flattened)
+    return flattened;
+  }
+
+
+  def getChoice(XSDTypeDefinition td) {
+    switch (td) {
+      XSDComplexTypeDefinition: {
+        val content = td.content
+        switch (content) {
+          XSDParticle: {
+            val pc = content.content
+            switch (pc) {
+              XSDModelGroup:
+                if(pc.compositor == XSDCompositor.CHOICE_LITERAL) {
+                  // Treat them all as optional.  The validator will check that exactly one is set
+                  pc.particles.forEach[p | p.minOccurs = 0]
+                  pc.particles
+                } else
+                  null
+              default:
+                null
+            }
+          }
+          default: null
+        }
+      }
+      default: null
+    }
+  }
+
+
+  def generateType(XSDTypeDefinition td) {
+    switch (td) {
+      XSDComplexTypeDefinition: {
+        generateType(td)
+      }
+      XSDSimpleTypeDefinition: {
+        if (td.baseTypeDefinition !== null) {
+          return generateType(td);
+        } else {
+          LOGGER.error("No base type defined for {}", td.name);
+          return ''''''
+        }
+      }
+    }
+  }
+
+
+
+  def generateElement(XSDElementDeclaration ed) '''
+    «header()»
+    package «this.packageNameFrom(ed.targetNamespace)»;
+
+    @javax.xml.bind.annotation.XmlRootElement(name = "«ed.getClassName»")
+    public class «ed.getClassName» extends «this.packageNameFrom(ed.typeDefinition)».«ed.typeDefinition.getClassName» {}
+  '''
+
+  //Method to decide between the two implementations of array in Bruce's code
+  def isListObject(List<XSDParticle> fields) {
+    if (fields.length != 1) return false;
+    val field = fields.get(0)
+    val pc = field.content
+    if (!(pc instanceof XSDElementDeclaration)) return false;
+    val ed = pc as XSDElementDeclaration
+    val name = ed.name
+    return (name == "array") && (field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED)
+  }
+
+  def toLocal(XSDElementDeclaration ed) {
+    val local = ed.getVarName;
+    (if (local.startsWith("_")) local.substring(1) else local).toFirstLower.toJavaIdentifier
+  }
+
+
+  static def findRamlAnnotationWithSuffix(List<Element> annotations, String suffix) {
+    for (Element annotation: annotations) {
+      val match = findRamlAnnotationWithSuffix(annotation, suffix);
+      if (match !== null) return match;
+    }
+    return null;
+  }
+
+  static def findRamlAnnotationWithSuffix(Element annotation, String suffix) {
+    if (annotation.getAttribute("name").endsWith(suffix)) {
+       return annotation
+    }
+    return null;
+  }
+
+  static def getEncoding(XSDElementDeclaration ed) {
+    val annotation = findRamlAnnotationWithSuffix(ed.getRamlAnnotations, OBJECT_ENCODING);
+    if (annotation !== null) {
+      return annotation.getTextContent.trim
+    } else {
+      return null;
+    }
+  }
+
+  static def getEncoding(XSDComplexTypeDefinition td) {
+    val annotation = findRamlAnnotationWithSuffix(td.getRamlAnnotations, OBJECT_ENCODING);
+    if (annotation !== null) {
+      return annotation.getTextContent.trim
+    } else {
+      return null;
+    }
+  }
+
+  static def getXmlNode(XSDElementDeclaration ed) {
+    val annotation = findRamlAnnotationWithSuffix(ed.getRamlAnnotations, XML_NODE);
+    if (annotation !== null) {
+      return new XmlNode(annotation)
+    } else {
+      return null;
+    }
+  }
+
+  static def getXmlNode(XSDComplexTypeDefinition td) {
+    val annotation = findRamlAnnotationWithSuffix(td.getRamlAnnotations, XML_NODE);
+    if (annotation !== null) {
+      return new XmlNode(annotation)
+    } else {
+      return null;
+    }
+  }
+
+  static def getEncodingSeparators(XSDComplexTypeDefinition td) {
+    var annotation = findRamlAnnotationWithSuffix(td.getRamlAnnotations, OBJECT_ENCODING_SEPARATOR);
+    if (annotation !== null) {
+      // In the newer version of the annotation we pass the separator as a property/element, whereas in the
+      // original version it was just passed as the body of the element (with no support for prefix/suffix).
+      // We support both in case people are relying on the old behaviour.
+      val separatorElements = annotation.getElementsByTagName("separator");
+      if (separatorElements.length > 0) {
+        annotation = separatorElements.item(0) as Element;
+        val NodeList itemElements = annotation.getElementsByTagName("item");
+        if (itemElements.length <= 1) {
+          return #[StringEscapeUtils.escapeJava(annotation.getTextContent.trim)]
+        } else {
+          return IntStream.range(0, itemElements.getLength())
+                          .mapToObj[itemElements.item(it)]
+                          .map[StringEscapeUtils.escapeJava(getTextContent.trim)]
+                          .collect(Collectors.toList())
+        }
+      }
+      return #[StringEscapeUtils.escapeJava(annotation.getTextContent.trim)]
+    } else {
+      return #[];
+    }
+  }
+
+  private static def getEncodingPrefixSuffix(XSDComplexTypeDefinition td, String tag) {
+    var annotation = findRamlAnnotationWithSuffix(td.getRamlAnnotations, OBJECT_ENCODING_SEPARATOR);
+    if (annotation !== null) {
+      val prefixElements = annotation.getElementsByTagName(tag);
+      if (prefixElements.length > 0)
+        return (prefixElements.item(0) as Element).getTextContent;
+    }
+    return null;
+  }
+
+  static def getEncodingPrefix(XSDComplexTypeDefinition td) {
+    return getEncodingPrefixSuffix(td, "prefix");
+  }
+
+  static def getEncodingSuffix(XSDComplexTypeDefinition td) {
+    return getEncodingPrefixSuffix(td, "suffix");
+  }
+
+  static def getKeyValueSeparator(XSDComplexTypeDefinition td) {
+    return getEncodingPrefixSuffix(td, "key_value_separator");
+  }
+
+  private static def isRequired(XSDParticle field) {
+    if(field.minOccurs > 0) return true
+    val e = field.content as XSDElementDeclaration
+    return checkRequiredAnnotation(e)
+  }
+
+  private static def checkRequiredAnnotation(XSDElementDeclaration e){
+    if(e.annotation !== null){
+      for(ann: e.annotation.applicationInformation){
+        val isRequired = ann.getElementsByTagName("aws_required");
+        if(isRequired.length > 0)
+          return true
+      }
+      return false
+    }
+  }
+
+  private def ignoredProperty(XSDElementDeclaration ed) {
+    val preprocAnnotation = ed.annotation?.preprocAnnotation
+    if (preprocAnnotation !== null) {
+      val expression = Expression.parse(preprocAnnotation, 0, null)
+      return !expression.eval(preprocessorService.preprocessorItems)
+    }
+    return false
+  }
+
+  def generateType(XSDComplexTypeDefinition td) '''
+    «val className = td.getClassName»
+    «val protoClassName = td.getProtoAdapterClassName»
+    «val particles = collectParticles(td)»
+    «val fields = particles»
+    «val flattenedFields = particles.flattenParticles»
+    «val choice = td.getChoice»
+    «val isListObject = isListObject(fields)»
+    «var usesDates = false»
+    «val prefix = getEncodingPrefix(td)»
+    «val suffix = getEncodingSuffix(td)»
+    «val separators = getEncodingSeparators(td)»
+    «val keyValueSeparator = getKeyValueSeparator(td)»
+    «var encoding = td.getEncoding»
+    «val customSerializerRequired = prefix !== null || suffix !== null || keyValueSeparator !== null || encoding == "gql"»
+    «var fidx = 0»
+    «header()»
+    package «this.packageNameFrom(td)»;
+    // Avoid import statements in case the type we are generating has a clashing name
+
+    @javax.xml.bind.annotation.XmlAccessorType(javax.xml.bind.annotation.XmlAccessType.PROPERTY)
+    @javax.xml.bind.annotation.XmlType(name = "«td.name.toJavaIdentifier»", namespace="«td.getTargetNamespace()»", propOrder = {
+      «FOR field: flattenedFields SEPARATOR ","»
+        «val pc = field.content»
+        «val propertyName = (pc as XSDElementDeclaration).propertyName»
+        "«propertyName»"
+      «ENDFOR»
+    })
+    «val xmlNode = getXmlNode(td)»
+    «val rootName = if (xmlNode === null) td.name else xmlNode.name»
+    «val rootNamespace = if (xmlNode === null) "##default" else xmlNode.namespace»
+    @javax.xml.bind.annotation.XmlRootElement(name = "«rootName»", namespace = "«rootNamespace»")
+    «IF customSerializerRequired»
+      @javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter(«className».Adapter.class)
+    «ENDIF»
+    «IF isListObject»
+      @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.avaloq.aws.server.impl.AwsJsonDeserializer.class, as = «className».class)
+      @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.avaloq.aws.server.impl.AwsJsonSerializer.class, as = «className».class)
+    «ELSE»
+      @com.fasterxml.jackson.databind.annotation.JsonSerialize(using = com.avaloq.aws.server.impl.AwsJsonSerializer.class, as = «className».class)
+    «ENDIF»
+    «IF !separators.empty»
+      @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.avaloq.aws.server.impl.AwsJsonDeserializer.class, as = «className».class)
+    «ENDIF»
+«««    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown=true)
+    «IF !td.getUntruncatedClassName.equals(className)»
+      // Original Name: «td.getUntruncatedClassName»
+    «ENDIF»
+    public class «className» extends com.avaloq.aws.server.impl.AbstractAwsComplexType
+        implements common.compilation.generated.api.AwsType {
+      public static final com.squareup.wire.ProtoAdapter<«className»> ADAPTER = new «protoClassName»();
+      private static org.slf4j.Logger LOGGER =
+        org.slf4j.LoggerFactory.getLogger(«className».class);
+
+      «{fidx=1; null}»
+      «FOR field: fields SEPARATOR "\n"»
+        «val pc = field.content»
+        «val ed = pc as XSDElementDeclaration»
+«««        «IF ignoredProperty(ed)»
+«««          @com.fasterxml.jackson.annotation.JsonIgnore
+«««        «ENDIF»
+        «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+        «val javaType = getJavaNullable(ed, this)»
+        «IF ed.typeDefinition.isDateTimeType»
+          «{ usesDates = true; null }»
+        «ENDIF»
+        «IF repeated»
+          private java.util.List<«javaType»> «ed.toLocal»;
+        «ELSE»
+          private «javaType» «ed.toLocal»;
+        «ENDIF»
+        «{fidx++; null}»
+      «ENDFOR»
+      «IF !fields.empty»
+
+        //Is set flag
+        @javax.xml.bind.annotation.XmlTransient
+        private java.util.BitSet isSetFlags = new java.util.BitSet();
+      «ENDIF»
+
+      «generateGettersAndSetters("", 0, td)»
+
+      «IF !fields.empty»
+        @javax.xml.bind.annotation.XmlTransient
+«««        @com.fasterxml.jackson.annotation.JsonIgnore
+        public java.util.BitSet getIsSetFlags() {
+          return isSetFlags;
+        }
+
+        @javax.xml.bind.annotation.XmlTransient
+        public void setIsSetFlagsFld(int fldNr) {
+          this.isSetFlags.set(fldNr);
+        }
+
+      «ENDIF»
+
+      «generateValidator(fields, choice)»
+
+«««      «generateJsonSerializers(td, className, flattenedFields, isListObject, usesDates)»
+      «generateXmlAdapter(td, className)»
+      «generateAwsSerializableTypeMethods(td, className, flattenedFields, isListObject, usesDates)»
+
+      «IF td.isSdsAware»
+        «generateIncomingSDSMethods(fields)»
+
+      «ENDIF»
+      «generateOutgoingSDSMethods(fields)»
+
+      private static final class «protoClassName» extends com.squareup.wire.ProtoAdapter<«className»> {
+        «protoClassName»() {
+          super(com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, «className».class);
+        }
+
+        «generateEncodedSize(className, fields)»
+
+        «generateEncode(className, fields)»
+
+        «val dateFields = new ArrayList()»
+        «IF choice === null»
+          «generateDecode(className, fields, dateFields)»
+        «ELSE»
+          «generateDecodeChoice(className, choice, dateFields)»
+        «ENDIF»
+
+        «IF !dateFields.empty»
+          private static java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd:'T'HH:mm:ss");
+
+          public javax.xml.datatype.XMLGregorianCalendar toDate(String value) throws java.io.IOException {
+            try {
+              if (value.startsWith("-")) {
+                java.time.LocalDateTime parsedDate = java.time.LocalDateTime.parse(value, formatter);
+                return javax.xml.datatype.DatatypeFactory.newInstance().newXMLGregorianCalendar(parsedDate.toString());
+              } else {
+                return javax.xml.datatype.DatatypeFactory.newInstance().newXMLGregorianCalendar(value);
+              }
+            } catch (javax.xml.datatype.DatatypeConfigurationException e) {
+              throw new java.io.IOException(e);
+            }
+          }
+
+        «ENDIF»
+      }
+    }
+
+  '''
+
+
+  def hasDefault(XSDParticle p) {
+    if (p.getContent() instanceof XSDElementDeclaration) {
+      val ed = p.getContent() as XSDElementDeclaration
+      ed.getElement().getAttributeNode("default") !== null
+    } else
+      false;
+  }
+
+
+  def generateValidator(List<XSDParticle> fields, List<XSDParticle> choice) '''
+    public void validate(java.util.List<com.avaloq.aws.server.acpwsservice.ErrorDetail> errors,
+                         com.avaloq.aws.server.impl.ImmutableStack<String> contextPath) {
+      «FOR field: fields»
+        «var required = isRequired(field) && !field.hasDefault»
+        «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+        «val pc = field.content»
+        «val ed = pc as XSDElementDeclaration»
+        «IF ed.name.startsWith("_")»
+          «IF required»
+            «ed.toLocal».validate(errors, contextPath);
+          «ELSE»
+            if («ed.toLocal» != null) «ed.toLocal».validate(errors, contextPath);
+          «ENDIF»
+        «ELSE»
+          «val getter = ed.getGetter»
+          «IF required && !repeated»
+            validateNotNull(«getter», "«ed.getRamlName»", errors, contextPath, «IF wsdlSource.generatedFromRAML»true«ELSE»false«ENDIF»);
+            «IF ed.typeDefinition instanceof XSDComplexTypeDefinition && isListObject(collectParticles(ed.typeDefinition)) && checkRequiredAnnotation(ed)»
+              if («getter» != null) validateNotNull(«getter».getArray(), "array", errors, contextPath.push("«ed.getRamlName»"), «IF wsdlSource.generatedFromRAML»true«ELSE»false«ENDIF»);
+            «ENDIF»
+          «ENDIF»
+          «IF repeated»
+            «IF checkRequiredAnnotation(ed)»
+              validateNotNull(«getter», "«ed.getRamlName»", errors, contextPath, «IF wsdlSource.generatedFromRAML»true«ELSE»false«ENDIF»);
+            «ENDIF»
+            «IF field.minOccurs > 1»
+              validateMinOccurs(«getter», «field.minOccurs», "«ed.getRamlName»", errors, contextPath, «IF wsdlSource.generatedFromRAML»true«ELSE»false«ENDIF»);
+            «ENDIF»
+            «IF field.maxOccurs != -1»
+              validateMaxOccurs(«getter», «field.maxOccurs», "«ed.getRamlName»", errors, contextPath, «IF wsdlSource.generatedFromRAML»true«ELSE»false«ENDIF»);
+            «ENDIF»
+          «ENDIF»
+          «IF ed.typeDefinition instanceof XSDSimpleTypeDefinition»
+            «val std = ed.typeDefinition as XSDSimpleTypeDefinition»
+            «IF std.targetNamespace != XMLConstants.W3C_XML_SCHEMA_NS_URI»
+              «var stdClassName = std.getClassName»
+              « { if (std.targetNamespace !== null)
+                    stdClassName = packageNameFrom(std.targetNamespace) + "."  + stdClassName;
+                  if ("Error" == std.name && std.targetNamespace === null) // Why is the namespace null?
+                    stdClassName = "com.avaloq.aws.server.acpwsservice.Error";
+                  null
+               } »
+              «IF repeated»
+                «val javaType = ed.typeDefinition.toNullableJava»
+                if («getter» != null) {
+                  int i = 0;
+                  for («javaType» _v : «getter»){
+                    «stdClassName».validate(_v, errors, contextPath.push("«ed.getRamlName»[" + (i++) + "]"));
+                  }
+                }
+              «ELSE»
+                if («getter» != null) «stdClassName».validate(«getter», errors, contextPath.push("«ed.getJavaName»"));
+              «ENDIF»
+            «ENDIF»
+          «ENDIF»
+          «IF requiresValidation(ed.typeDefinition) && ed.typeDefinition instanceof XSDComplexTypeDefinition»
+            «IF repeated»
+              «val javaType = if (required && !repeated) ed.typeDefinition.toJava else ed.typeDefinition.toNullableJava»
+              if («getter» != null) {
+                int i = 0;
+                for («javaType» _v : «getter») _v.validate(errors, contextPath.push("«ed.getRamlName»[" + (i++) + "]"));
+              }
+            «ELSE»
+              if («getter» != null) «getter».validate(errors, contextPath.push("«ed.getRamlName»"));
+            «ENDIF»
+          «ENDIF»
+        «ENDIF»
+      «ENDFOR»
+      «IF choice !== null»
+        «generateChoiceValidator(choice)»
+      «ENDIF»
+    }
+  '''
+
+  def generateChoiceValidator(List<XSDParticle> choice) '''
+    «IF choice.length > 1»
+      «var choiceValues = ""»
+      «var choiceNames = ""»
+      «FOR field: choice»
+        «val pc = field.content»
+        «val ed = pc as XSDElementDeclaration»
+        «val getter = ed.getGetter»
+        «{
+          if (choiceValues.length > 0) {
+            choiceValues += ","
+            choiceNames += ","
+          }
+          choiceValues += getter;
+          choiceNames += "\"" + getter + "\""
+          null
+        }»
+      «ENDFOR»
+      validateChoice(new Object[] { «choiceValues» }, new String[] { «choiceNames» }, errors, contextPath, false);
+    «ENDIF»
+  '''
+
+
+  def CharSequence generateGettersAndSetters(String prefix, int prefixIndex, XSDComplexTypeDefinition td) '''
+    «val particles = collectParticles(td)»
+    «val fields = particles»
+    «var fidx=0»
+    «FOR field: fields SEPARATOR "\n"»
+      «val pc = field.content»
+      «val ed = pc as XSDElementDeclaration»
+      «IF ed.name.startsWith("_")»
+        // Expanding out «ed.name»
+        «generateGettersAndSetters(ed.toLocal, fidx, ed.typeDefinition as XSDComplexTypeDefinition)»
+      «ELSE»
+        «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+        «var typeName = ed.typeDefinition.toNullableJava»
+        «{ if (repeated) typeName = "java.util.List<" + typeName + ">"; null }»
+        «IF !ignoredProperty(ed)»
+          «IF ed.typeDefinition.isDateTimeType»
+            @javax.xml.bind.annotation.XmlSchemaType(name = "date")
+            «IF !repeated»@javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter(«typeToDateAdapter(ed.typeDefinition).adapterClassName».class)«ENDIF»
+            @com.fasterxml.jackson.databind.annotation.JsonSerialize(«IF repeated»contentUsing«ELSE»using«ENDIF» = «typeToDateAdapter(ed.typeDefinition).serializerClassName».class)
+            @com.fasterxml.jackson.databind.annotation.JsonDeserialize(«IF repeated»contentUsing«ELSE»using«ENDIF» = «typeToDateAdapter(ed.typeDefinition).deserializerClassName».class)
+          «ENDIF»
+          @com.fasterxml.jackson.annotation.JsonProperty("«(pc as XSDElementDeclaration).getRamlName»")
+          «val xmlNode = getXmlNode(ed)»
+          «IF findRamlAnnotationWithSuffix(getRamlAnnotations(td), '$xml-value') !== null»
+            @javax.xml.bind.annotation.XmlValue
+          «ELSE»
+            «IF findRamlAnnotationWithSuffix(getRamlAnnotations(ed), '$xml-wrapped') !== null»
+              @javax.xml.bind.annotation.XmlElement(name="«ed.typeDefinition.name»")
+              @javax.xml.bind.annotation.XmlElementWrapper(name="«findRamlAnnotationWithSuffix(getRamlAnnotations(ed), '$xml-wrapped').textContent.trim»")
+            «ELSE»
+              «IF findRamlAnnotationWithSuffix(getRamlAnnotations(ed), '$xml-value') !== null»
+                @javax.xml.bind.annotation.XmlValue
+              «ELSEIF xmlNode !== null»
+                «val namespace = if (xmlNode.namespace === null) "" else ", namespace=\"" + xmlNode.namespace + "\""»
+                «val name = if (xmlNode.name === null) (pc as XSDElementDeclaration).name.toJavaIdentifier else xmlNode.name»
+                «IF xmlNode.wrapped»
+                  @javax.xml.bind.annotation.XmlElementWrapper(name="«name»"«namespace»)
+                  @javax.xml.bind.annotation.XmlElement(name="«ed.typeDefinition.name»"«namespace»)
+                «ELSEIF xmlNode.attribute»
+                  @javax.xml.bind.annotation.XmlAttribute(name="«name»"«namespace»)
+                «ELSE»
+                  @javax.xml.bind.annotation.XmlElement(name="«name»"«namespace»)
+                «ENDIF»
+              «ELSE»
+                @javax.xml.bind.annotation.XmlElement(name="«(pc as XSDElementDeclaration).getJavaName»")
+              «ENDIF»
+            «ENDIF»
+          «ENDIF»
+        «ENDIF»
+        public «typeName» «ed.getGetter» {
+          «IF prefix.length > 0»
+            if («prefix» == null) return null;
+            return «prefix».«ed.getGetter»;
+          «ELSE»
+            return «ed.toLocal»;
+          «ENDIF»
+        }
+
+        public void «ed.getSetter»(«typeName» value) {
+          «IF prefix.length > 0»
+            if («prefix» == null) {
+              «prefix» = new «td.toNullableJava»();
+              this.setIsSetFlagsFld(«prefixIndex»);
+            }
+            «prefix».«ed.getSetter»(value);
+          «ELSE»
+            this.«ed.toLocal» = value;
+            this.setIsSetFlagsFld(«fidx»);
+          «ENDIF»
+        }
+      «ENDIF»
+      «{fidx++; null}»
+    «ENDFOR»
+  '''
+
+  def DateAdapter typeToDateAdapter(XSDTypeDefinition typeDefinition) {
+    switch (typeDefinition.dateTimeTypeString) {
+      case "date": return DateAdapter.DATE_ONLY
+      case "time": return DateAdapter.TIME_ONLY
+      case "dateTime": return DateAdapter.DATE_TIME
+      case "dateTimeOnly": return DateAdapter.DATE_TIME_ONLY
+      default: null
+    }
+  }
+
+  def writeDateTimeField(String getter, String fieldName, XSDSimpleTypeDefinition typeDefinition, boolean repeated, boolean isSDS) '''
+    «val dtts = typeDefinition.dateTimeTypeString»
+    «IF repeated»
+      jsonGenerator.writeArrayFieldStart("«fieldName»");
+      for («typeDefinition.toNullableJava» item : «getter») {
+        «IF isSDS && dtts == "date"»
+          if (sdsDate(item))
+            jsonGenerator.writeObject(com.avaloq.aws.server.util.DateAdapter.DATE_TIME.toString(item));
+          else
+            jsonGenerator.writeObject(com.avaloq.aws.server.util.DateAdapter.«typeToDateAdapter(typeDefinition)».toString(item));
+        «ELSE»
+          jsonGenerator.writeObject(com.avaloq.aws.server.util.DateAdapter.«typeToDateAdapter(typeDefinition)».toString(item));
+        «ENDIF»
+      }
+      jsonGenerator.writeEndArray();
+    «ELSE»
+      «IF isSDS && dtts == "date"»
+        if (sdsDate(«getter»))
+          jsonGenerator.writeObjectField("«fieldName»", com.avaloq.aws.server.util.DateAdapter.DATE_TIME.toString(«getter»));
+        else
+          jsonGenerator.writeObjectField("«fieldName»", com.avaloq.aws.server.util.DateAdapter.«typeToDateAdapter(typeDefinition)».toString(«getter»));
+      «ELSE»
+        jsonGenerator.writeObjectField("«fieldName»", com.avaloq.aws.server.util.DateAdapter.«typeToDateAdapter(typeDefinition)».toString(«getter»));
+      «ENDIF»
+    «ENDIF»
+  '''
+
+  // Serialize generator for gql object encoding
+  def generateGQLSerializer(String shapeName, String shapeEntryName) '''
+    private static void customSerialize(«shapeName» shape, StringBuilder sb) {
+      sb.append("{");
+      if (shape.getArray() != null) {
+        boolean first = true;
+        for («shapeEntryName» entry : shape.getArray()) {
+          if (first) first = false; else sb.append(" ");
+          customSerialize(entry, sb);
+        }
+      }
+      sb.append("}");
+    }
+
+    private static void customSerialize(«shapeEntryName» entry, StringBuilder sb) {
+      sb.append(entry.getName());
+      if (entry.getShape() != null) {
+        sb.append(" ");
+        customSerialize(entry.getShape(), sb);
+      }
+    }
+
+    public static String customSerialize(«shapeName» «shapeName.toFirstLower») {
+      StringBuilder sb = new StringBuilder();
+      if (shape != null)
+        customSerialize(shape, sb);
+      return sb.toString();
+    }
+  '''
+
+  def generateCustomSerializer(String className, List<XSDParticle> fields, String prefix, String suffix, List<String> separators, String keyValueSeparator) '''
+    public static String customSerialize(«className» «className.toFirstLower») {
+      StringBuilder sb = new StringBuilder();
+      «IF prefix !== null»
+        sb.append("«prefix»");
+      «ENDIF»
+      «var fidx=0»
+      String encodedValue = null;
+      «FOR field: fields SEPARATOR "\n"»
+        «val pc = field.content»
+        «val ed = pc as XSDElementDeclaration»
+        «var type = ed.typeDefinition»
+        «var typeName = ed.typeDefinition.toNullableJava»
+        «val ramlName = ed.ramlName»
+        «val getter = ed.getGetter»
+        «val required = isRequired(field)»
+        «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+        «IF type instanceof XSDSimpleTypeDefinition »
+          «IF required && !repeated»
+            encodedValue = ((Object)(«className.toFirstLower».«getter»)).toString();
+          «ELSE»
+            if(checkFieldExistsInBitMask(«fidx», «className.toFirstLower».isSetFlags, «className.toFirstLower».«getter»)){
+              encodedValue = ((Object)(«className.toFirstLower».«getter»)).toString();
+            } else {
+              encodedValue = null;
+            }
+          «ENDIF»
+        «ELSE»
+          «val encoding = getEncoding(ed)»
+          if(checkFieldExistsInBitMask(«fidx», «className.toFirstLower».isSetFlags, «className.toFirstLower».«getter»)){
+            «IF encoding !== null»
+              «IF encoding == "xml" || encoding == "xml+urlencoded"»
+                try {
+                  javax.xml.bind.JAXBContext context = getJaxbContextFor(«typeName».class);
+                  javax.xml.bind.Marshaller marshaller = context.createMarshaller();
+                  marshaller.setProperty(javax.xml.bind.Marshaller.JAXB_FRAGMENT, Boolean.TRUE);
+                  java.io.StringWriter sw = new java.io.StringWriter();
+                  marshaller.marshal(«className.toFirstLower».«getter», sw);
+                  encodedValue = sw.toString();
+                  «IF encoding == "xml+urlencoded"»
+                  encodedValue = java.net.URLEncoder.encode(encodedValue,  "UTF-8");
+                  «ENDIF»
+                } catch (java.io.UnsupportedEncodingException ex) {
+                  throw new IllegalArgumentException("Unable to serialize an instance of «className»", ex);
+                } catch (javax.xml.bind.JAXBException ex) {
+                  throw new IllegalArgumentException("Unable to serialize an instance of «className»", ex);
+                }
+              «ELSEIF encoding == "json" || encoding == "json+urlencoded" || encoding == "base64"»
+                try {
+                  encodedValue = JSON_MAPPER.writeValueAsString(«className.toFirstLower».«getter»);
+                  «IF encoding == "json+urlencoded"»
+                  encodedValue = java.net.URLEncoder.encode(encodedValue,  "UTF-8");
+                  «ENDIF»
+                  «IF encoding == "base64"»
+                  encodedValue = org.apache.commons.codec.binary.Base64.encodeBase64URLSafeString(encodedValue.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                  «ENDIF»
+                } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+                  throw new IllegalArgumentException("Unable to serialize an instance of «className», field «ed.propertyName»", ex);
+                }
+              «ELSE»
+                throw new IllegalArgumentException("Unable to serialize an instance of «className», field «ed.propertyName». Unknown encoding «encoding»");
+              «ENDIF»
+            «ELSE»
+              throw new IllegalArgumentException("Unable to serialize an instance of «className», field «ed.propertyName». No encoding defined");
+            «ENDIF»
+          }
+        «ENDIF»
+        «IF fidx > 0 && !separators.isEmpty»
+          sb.append("«separators.head»");
+        «ENDIF»
+        «IF keyValueSeparator !== null»
+          sb.append("«ramlName»«keyValueSeparator»");
+        «ENDIF»
+        sb.append(encodedValue);
+        «{fidx++; null}»
+      «ENDFOR»
+      «IF suffix !== null»
+        sb.append("«suffix»");
+      «ENDIF»
+      return sb.toString();
+    }
+
+  '''
+
+  def generateAwsSerializableTypeMethods(XSDComplexTypeDefinition td, String className, List<XSDParticle> fields, boolean isListObject, boolean usesDates) '''
+    «val varName = className.toFirstLower.toJavaIdentifier»
+    «val prefix = getEncodingPrefix(td)»
+    «val suffix = getEncodingSuffix(td)»
+    «val separators = getEncodingSeparators(td)»
+    «val keyValueSeparator = getKeyValueSeparator(td)»
+    «val typeEncoding = td.getEncoding»
+    «val customSerializerRequired = prefix !== null || suffix !== null || keyValueSeparator !== null || typeEncoding == "gql" »
+    @Override
+    public java.util.List<com.avaloq.aws.server.impl.AwsTypeProperty> getProperties() {
+      // TODO: complete this method with a property entry for each field
+      return new java.util.ArrayList<>();
+    }
+  '''
+
+  // Beware: although the documentation for JacksonJaxbJsonProvider says that when a class has both Jackson and JAXB annotations
+  // then Jackson wins when serializing to JSON, this appears not to be true when the class also has an XmlJavaTypeAdapter annotation
+
+  def generateJsonSerializers(XSDComplexTypeDefinition td, String className, List<XSDParticle> fields, boolean isListObject, boolean usesDates) '''
+    «val varName = className.toFirstLower.toJavaIdentifier»
+    «val prefix = getEncodingPrefix(td)»
+    «val suffix = getEncodingSuffix(td)»
+    «val separators = getEncodingSeparators(td)»
+    «val keyValueSeparator = getKeyValueSeparator(td)»
+    «val typeEncoding = td.getEncoding»
+    «val customSerializerRequired = prefix !== null || suffix !== null || keyValueSeparator !== null || typeEncoding == "gql" »
+    «IF customSerializerRequired»
+      @Override
+      public String toString() {
+        return Serializer.customSerialize(this);
+      }
+
+    «ENDIF»
+    «IF isListObject»
+      «val field = fields.get(0)»
+      «val pc = field.content»
+      «val ed = pc as XSDElementDeclaration»
+      «val required = isRequired(field)»
+      «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+      «val javaType = if (required && !repeated) ed.typeDefinition.toJava else ed.typeDefinition.toNullableJava»
+      «val serializedClass = if (customSerializerRequired) "Object" else className»
+      public static final class Serializer extends com.fasterxml.jackson.databind.JsonSerializer<«serializedClass»> {
+        «IF customSerializerRequired»
+          «IF typeEncoding == "gql"»
+            «generateGQLSerializer(className, ed.typeDefinition.getClassName)»
+          «ENDIF»
+          @Override
+          public void serialize(Object _object, com.fasterxml.jackson.core.JsonGenerator jsonGenerator,
+              com.fasterxml.jackson.databind.SerializerProvider serializerProvider) throws java.io.IOException {
+            if (_object instanceof String) {
+              // Value has already been serialized, e.g. due to XmlJavaTypeAdapter
+              jsonGenerator.writeString((String)_object);
+            } else {
+              jsonGenerator.writeString(customSerialize((«className»)_object));
+            }
+          }
+
+        «ELSE»
+          @Override
+          public void serialize(«className» «varName», com.fasterxml.jackson.core.JsonGenerator jsonGenerator,
+              com.fasterxml.jackson.databind.SerializerProvider serializerProvider) throws java.io.IOException {
+            if(«varName».«ed.getGetter» == null){
+              jsonGenerator.writeObject(«varName».«ed.getGetter»);
+            } else{
+              jsonGenerator.writeStartArray();
+              for (Object o : «varName».«ed.getGetter»)
+                jsonGenerator.writeObject(o);
+              jsonGenerator.writeEndArray();
+            }
+          }
+        «ENDIF»
+      }
+
+      public static final class Deserializer extends com.fasterxml.jackson.databind.JsonDeserializer<«className»> {
+        private static final com.fasterxml.jackson.databind.ObjectMapper JSON_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        static {
+            JSON_MAPPER.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        @Override
+        public «className» deserialize(com.fasterxml.jackson.core.JsonParser jsonParser,
+            com.fasterxml.jackson.databind.DeserializationContext deserializationContext) throws java.io.IOException {
+          com.fasterxml.jackson.core.ObjectCodec oc = jsonParser.getCodec();
+          «IF getEncoding(td) == "gql"»
+            // String encoded = oc.readValue(jsonParser, String.class);
+            String encoded = jsonParser.getText();
+            «className» object = deserialize(encoded);
+          «ELSE»
+            «javaType»[] array = oc.readValue(jsonParser, «javaType»[].class);
+            «className» object = new «className»();
+            object.«ed.getSetter»(java.util.Arrays.asList(array));
+          «ENDIF»
+          return object;
+        }
+
+        «IF getEncoding(td) == "gql"»
+          «val shapeEntry = ed.typeDefinition.getClassName»
+          public static «shapeEntry» buildShapeEntry(java.util.ArrayDeque<String> tokens) {
+            if (tokens.isEmpty()) return null;
+            «shapeEntry» shapeEntry = new «shapeEntry»();
+            String name = tokens.pop();
+            shapeEntry.setName(name);
+            «className» shape = buildShape(tokens);
+            shapeEntry.setShape(shape);
+            return shapeEntry;
+          }
+
+          public static «className» buildShape(java.util.ArrayDeque<String> tokens) {
+            if (tokens.isEmpty()) return null;
+            «className» shape = new «className»();
+            java.util.List<«shapeEntry»> shapeEntries = new java.util.ArrayList<>();
+            String head = tokens.peek();
+            if (head.equals("{")) {
+              tokens.pop();
+              String nextToken = tokens.peek();
+              while (nextToken != null && !nextToken.equals("}")) {
+                «shapeEntry» shapeEntry = buildShapeEntry(tokens);
+                if (shapeEntry != null)
+                  shapeEntries.add(shapeEntry);
+                nextToken = tokens.peek();
+              }
+              tokens.pop();
+              shape.setArray(shapeEntries);
+              return shape;
+            } else {
+              return null;
+            }
+          }
+
+        «ENDIF»
+        public static «className» deserialize(String encoded) throws java.io.IOException {
+          «IF getEncoding(td) == "gql"»
+            LOGGER.info("Decoding GQL expression '{}'", encoded);
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\{|\\}|\\w+|\\s+");
+            java.util.regex.Matcher matcher = pattern.matcher(encoded);
+            java.util.ArrayDeque<String> tokens = new java.util.ArrayDeque<String>();
+            int endPos = 0;
+            while (matcher.find()) {
+              String token = matcher.group(0);
+              int startPos = matcher.start();
+              String padding = startPos == endPos ? "" : encoded.substring(endPos, startPos).trim();
+              endPos = matcher.end();
+              if (!padding.isEmpty()) {
+                throw new IllegalArgumentException("Unexpected sequence " + padding + " when decoding " + encoded + " as a GraphQL expression");
+              }
+              if (!token.trim().isEmpty())
+                tokens.add(token);
+            }
+            return buildShape(tokens);
+          «ELSE»
+            «className» object = new «className»();
+            try {
+              if (!encoded.trim().startsWith("["))
+                encoded = "[" + encoded + "]";
+              «javaType»[] array = JSON_MAPPER.readValue(encoded, «javaType»[].class);
+              object.«ed.getSetter»(java.util.Arrays.asList(array));
+              return object;
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+              throw new IllegalArgumentException("Unable to deserialize an instance of «className»: " + e.getMessage(), e);
+            }
+          «ENDIF»
+        }
+      }
+    «ELSE»
+      «val serializedClass = if (customSerializerRequired) "Object" else className»
+      public static final class Serializer extends com.fasterxml.jackson.databind.JsonSerializer<«serializedClass»> {
+        private static final com.fasterxml.jackson.databind.ObjectMapper JSON_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+        «IF customSerializerRequired»
+          «generateCustomSerializer(className, fields, prefix, suffix, separators, keyValueSeparator)»
+          @Override
+          public void serialize(Object _object, com.fasterxml.jackson.core.JsonGenerator jsonGenerator,
+              com.fasterxml.jackson.databind.SerializerProvider serializerProvider) throws java.io.IOException {
+            if (_object instanceof String) {
+              // Value has already been serialized, e.g. due to XmlJavaTypeAdapter
+              jsonGenerator.writeString((String)_object);
+            } else {
+              jsonGenerator.writeString(customSerialize((«className»)_object));
+            }
+          }
+        «ELSE»
+        @Override
+        public void serialize(«className» «varName», com.fasterxml.jackson.core.JsonGenerator jsonGenerator,
+            com.fasterxml.jackson.databind.SerializerProvider serializerProvider) throws java.io.IOException {
+          if («varName» != null) {
+            «IF customSerializerRequired»
+              jsonGenerator.writeString(customSerialize(«varName»));
+            «ELSE»
+              jsonGenerator.writeStartObject();
+              «var fidx=0»
+              «FOR field: fields SEPARATOR "\n"»
+                «val pc = field.content»
+                «val ed = pc as XSDElementDeclaration»
+                «IF !ignoredProperty(ed)»
+                  «var type = ed.typeDefinition»
+                  «val fieldName = ed.getRamlName»
+                  «val getter = ed.getGetter»
+                  «val required = isRequired(field)»
+                  «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+                  «IF type instanceof XSDSimpleTypeDefinition »
+                    «IF required && !repeated»
+                      «IF type.isDateTimeType»
+                        «writeDateTimeField(varName + "." + getter, fieldName, type, repeated, field.isSDS)»
+                      «ELSE»
+                        jsonGenerator.writeObjectField("«fieldName»", «varName».«getter»);
+                      «ENDIF»
+                    «ELSE»
+                    if(checkFieldExistsInBitMask(«fidx», «varName».isSetFlags, «varName».«getter»)){
+                      «IF type.isDateTimeType»
+                        «writeDateTimeField(varName + "." + getter, fieldName, type, repeated, field.isSDS)»
+                      «ELSE»
+                        jsonGenerator.writeObjectField("«fieldName»", «varName».«getter»);
+                    «ENDIF»
+                    }
+                    «ENDIF»
+                  «ELSE»
+                    if(checkFieldExistsInBitMask(«fidx», «varName».isSetFlags, «varName».«getter»)){
+                      jsonGenerator.writeObjectField("«fieldName»",«varName».«getter»);
+                    }
+                  «ENDIF»
+                «ENDIF»
+                «{fidx++; null}»
+              «ENDFOR»
+              jsonGenerator.writeEndObject();
+            «ENDIF»
+          }
+        }
+        «ENDIF»
+      }
+    «ENDIF»
+
+    «IF !separators.empty»
+      public static final class Deserializer extends com.fasterxml.jackson.databind.JsonDeserializer<«className»> {
+
+        private static final com.fasterxml.jackson.databind.ObjectMapper JSON_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        static {
+            JSON_MAPPER.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        @Override
+        public «className» deserialize(com.fasterxml.jackson.core.JsonParser jsonParser,
+            com.fasterxml.jackson.databind.DeserializationContext deserializationContext) throws java.io.IOException {
+          com.fasterxml.jackson.databind.JsonNode node = jsonParser.getCodec().readTree(jsonParser);
+          String encoded = node.asText();
+          return deserialize(encoded);
+        }
+
+        @SuppressWarnings("unchecked")
+        public static «className» deserialize(String encoded) throws java.io.IOException {
+          «IF prefix !== null»
+            if (encoded.startsWith("«prefix»")) {
+              encoded = encoded.substring(«prefix.length»);
+            }
+          «ENDIF»
+          «IF suffix !== null»
+            if (encoded.endsWith("«suffix»")) {
+              encoded = encoded.substring(0, encoded.length - «suffix.length»);
+            }
+          «ENDIF»
+          String[] encodedFields = encoded.split(«separatorsPattern(separators)»);
+          «className» result = new «className»();
+          «IF keyValueSeparator !== null»
+            java.util.Map<String,String> kvm = new java.util.HashMap<>();
+            java.util.Arrays.stream(encodedFields).forEach(kv -> {
+              int kvSeparatorIndex = kv.indexOf("«keyValueSeparator»");
+              if (kvSeparatorIndex <= 0) {
+                throw new IllegalArgumentException("Invalid key/value entry '" + kv + "'");
+              } else {
+                String key = kv.substring(0, kvSeparatorIndex).trim();
+                String value = kv.substring(kvSeparatorIndex + "«keyValueSeparator»".length()).trim();
+                kvm.put(key, value);
+              }
+            });
+          «ENDIF»
+          String decodedValue = null;
+          «var fidx=0»
+          «FOR field: fields SEPARATOR "\n"»
+            «val pc = field.content»
+            «val ed = pc as XSDElementDeclaration»
+            «IF !ignoredProperty(ed)»
+              try {
+                «var typeName = ed.typeDefinition.toNullableJava»
+                «var repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+                «val setter = ed.getSetter»
+                «val encoding = getEncoding(ed)»
+                «IF repeated»
+                  «{typeName = "java.util.List<" + typeName + ">"; null}»
+                «ENDIF»
+                «IF keyValueSeparator === null»
+                   if (encodedFields.length > «fidx») {
+                    «IF encoding !== null»
+                      «IF encoding == "base64"»
+                        org.apache.commons.codec.binary.Base64 base64Url = new org.apache.commons.codec.binary.Base64(true);
+                        decodedValue = new String(base64Url.decode(encodedFields[«fidx»]));
+                        result.«setter»(JSON_MAPPER.readValue(decodedValue, «IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»));
+                      «ELSE»
+                        result.«setter»(JSON_MAPPER.readValue(encodedFields[«fidx»], «IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»));
+                      «ENDIF»
+                    «ELSE»
+                      result.«setter»(JSON_MAPPER.readValue(encodedFields[«fidx»], «IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»));
+                    «ENDIF»
+                  }
+                «ELSE»
+                  decodedValue = kvm.getOrDefault("«ed.name»", null);
+                  if (decodedValue != null) {
+                    «IF encoding !== null && (encoding == "xml+urlencoded" || encoding == "json+urlencoded")»
+                      decodedValue = java.net.URLDecoder.decode(decodedValue, "UTF-8").trim();
+                    «ELSE»
+                      decodedValue = decodedValue.trim();
+                    «ENDIF»
+                    if (decodedValue.startsWith("\"") && decodedValue.endsWith("\""))
+                      decodedValue = decodedValue.substring(1, decodedValue.length() - 1);
+                    «IF encoding !== null»
+                      «IF encoding == "xml" || encoding == "xml+urlencoded"»
+                        javax.xml.bind.JAXBContext jaxbContext = getJaxbContextFor(«IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»);
+                        java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(decodedValue.getBytes());
+                        result.«setter»((«typeName»)com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream, jaxbContext));
+                      «ELSEIF encoding == "json" || encoding == "json+urlencoded"»
+                        result.«setter»(JSON_MAPPER.readValue(decodedValue, «IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»));
+                      «ELSE» //TODO add base64 check
+                        throw new IllegalArgumentException("Unable to deserialize an instance of «className» from '" + decodedValue + "'");
+                      «ENDIF»
+                    «ELSE»
+                      // Try to dynamically infer the encoding from the contents
+                      if (decodedValue.startsWith("{") || decodedValue.startsWith("[")) {
+                        result.«setter»(JSON_MAPPER.readValue(decodedValue, «IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»));
+                      } else if (decodedValue.startsWith("<")) {
+                        javax.xml.bind.JAXBContext jaxbContext = getJaxbContextFor(«IF repeated»java.util.List.class«ELSE»«typeName».class«ENDIF»);
+                        java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(decodedValue.getBytes());
+                        result.«setter»((«typeName»)com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream, jaxbContext));
+                      } else {
+                        «IF ed.typeDefinition instanceof XSDSimpleTypeDefinition && !repeated»
+                          result.«setter»(«ed.typeDefinition.coerceFromString("decodedValue")»);
+                        «ELSE»
+                          throw new IllegalArgumentException("Unable to deserialize an instance of «className» from '" + decodedValue + "'");
+                        «ENDIF»
+                      }
+                    «ENDIF»
+                  }
+                «ENDIF»
+              } catch (Exception ex) {
+                if (ex instanceof IllegalArgumentException)
+                  throw (IllegalArgumentException)ex;
+                else {
+                  throw new IllegalArgumentException("Unable to deserialize property «ed.name» in «className» from '" + encodedFields[«fidx»] + "'", ex);
+                }
+              }
+            «ENDIF»
+            «{fidx++; null}»
+          «ENDFOR»
+          return result;
+        }
+      }
+    «ELSEIF !isListObject»
+      public static final class Deserializer extends com.fasterxml.jackson.databind.JsonDeserializer<«className»> {
+
+        private static final com.fasterxml.jackson.databind.ObjectMapper JSON_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        static {
+            JSON_MAPPER.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        }
+
+        @Override
+        public «className» deserialize(com.fasterxml.jackson.core.JsonParser jsonParser,
+            com.fasterxml.jackson.databind.DeserializationContext deserializationContext) throws java.io.IOException {
+          com.fasterxml.jackson.databind.JsonNode node = jsonParser.getCodec().readTree(jsonParser);
+          String encoded = node.asText();
+          return deserialize(encoded);
+        }
+
+        public static «className» deserialize(String encoded) throws java.io.IOException {
+          try {
+            return JSON_MAPPER.readValue(encoded, «className».class);
+          } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new IllegalArgumentException("Unable to deserialize an instance of «className»: " + e.getMessage(), e);
+          }
+        }
+      }
+    «ENDIF»
+
+  '''
+
+  def generateXmlAdapter(XSDComplexTypeDefinition td, String className) '''
+    «val prefix = getEncodingPrefix(td)»
+    «val suffix = getEncodingSuffix(td)»
+    «val keyValueSeparator = getKeyValueSeparator(td)»
+    «val typeEncoding = td.getEncoding»
+    «val customSerializerRequired = prefix !== null || suffix !== null || keyValueSeparator !== null || typeEncoding == "gql" »
+    «IF getEncoding(td) == "gql"»
+    public static final class Adapter extends javax.xml.bind.annotation.adapters.XmlAdapter<Object, «className»> {
+    «ELSE»
+    public static final class Adapter extends javax.xml.bind.annotation.adapters.XmlAdapter<String, «className»> {
+    «ENDIF»
+      «IF getEncoding(td) == "gql"»
+        public «className» unmarshal(final Object xml) throws java.lang.Exception {
+          if (xml instanceof «className») return («className»)xml;
+          javax.xml.bind.JAXBContext jaxbContext = getJaxbContextFor(«className».class);
+          java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(((String)xml).getBytes());
+          return («className»)com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream, jaxbContext);
+        }
+      «ELSE»
+        public «className» unmarshal(final String xml) throws java.lang.Exception {
+          javax.xml.bind.JAXBContext jaxbContext = getJaxbContextFor(«className».class);
+          java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(xml.getBytes());
+          return («className»)com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream, jaxbContext);
+        }
+      «ENDIF»
+
+      public String marshal(final «className» object) throws java.lang.Exception {
+        «IF customSerializerRequired»
+          String marshalled = Serializer.customSerialize(object);
+        «ELSE»
+          javax.xml.bind.JAXBContext context = getJaxbContextFor(«className».class);
+          javax.xml.bind.Marshaller marshaller = context.createMarshaller();
+          marshaller.setProperty(javax.xml.bind.Marshaller.JAXB_FRAGMENT, Boolean.TRUE);
+          java.io.StringWriter sw = new java.io.StringWriter();
+          marshaller.marshal(object, sw);
+          String marshalled = sw.toString();
+        «ENDIF»
+        return marshalled;
+      }
+    }
+
+  '''
+
+  def separatorsPattern(List<String> separators) '''
+    «FOR s : separators SEPARATOR ' + "|" + '»java.util.regex.Pattern.quote("«s»")«ENDFOR»'''
+
+  def generateEncodedSize(String className, List<XSDParticle> fields) '''
+    @Override
+    public int encodedSize(«className» value) {
+      «var fidx=1»
+      «IF fields.length > 0»
+        «FOR field: fields»
+          «val pc = field.content»
+          «val ed = pc as XSDElementDeclaration»
+          «val required = isRequired(field) && !field.hasDefault /*|| isPrimitive(typeName)*/»
+          «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+          «var value =  "value." + ed.toLocal»
+          «IF ed.typeDefinition.isDateTimeType»
+            «IF repeated»
+              «{ value = value + ".stream().map(v -> com.avaloq.aws.server.util.DateAdapter." + typeToDateAdapter(ed.typeDefinition) + ".toString(v)).collect(java.util.stream.Collectors.toList())"; null }»
+            «ELSE»
+              «{ value = "com.avaloq.aws.server.util.DateAdapter." + typeToDateAdapter(ed.typeDefinition) + ".toString(" + value + ")"; null }»
+            «ENDIF»
+          «ENDIF»
+          «IF repeated»
+            «IF fidx == 1»int size =«ELSE»     +«ENDIF» (value.«ed.toLocal» != null ? «toAdapterType(ed.typeDefinition)».asRepeated().encodedSizeWithTag(«fidx», «value») : 0)«IF fidx == fields.length»;«ENDIF»
+          «ELSEIF required»
+            «IF fidx == 1»int size =«ELSE»     +«ENDIF» (value.«ed.toLocal» != null ? «toAdapterType(ed.typeDefinition)».encodedSizeWithTag(«fidx», «value») : 0)«IF fidx == fields.length»;«ENDIF»
+          «ELSE»
+            «IF fidx == 1»int size =«ELSE»     +«ENDIF» (value.«ed.toLocal» != null ? «toAdapterType(ed.typeDefinition)».encodedSizeWithTag(«fidx», «value») : 0)«IF fidx == fields.length»;«ENDIF»
+          «ENDIF»
+          «{fidx++; null}»
+        «ENDFOR»
+        «IF !fields.empty»
+          long[] bitMasks = value.isSetFlags.toLongArray();
+          for(long bitMask: bitMasks){
+            «IF fidx == 1»return «ELSE» size += «ENDIF» com.squareup.wire.ProtoAdapter.UINT64.encodedSizeWithTag(«fidx», bitMask);
+          }
+        «ENDIF»
+        return size;
+        «ELSE»
+        return 0;
+      «ENDIF»
+    }
+  '''
+
+  def generateEncode(String className, List<XSDParticle> fields) '''
+    @Override
+    public void encode(com.squareup.wire.ProtoWriter writer, «className» value) throws java.io.IOException {
+      «var fidx=1»
+      «FOR field: fields»
+        «val pc = field.content»
+        «val ed = pc as XSDElementDeclaration»
+        «val required = isRequired(field) && !field.hasDefault /*|| isPrimitive(typeName)*/»
+        «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+        «var value =  "value." + ed.toLocal»
+        «IF ed.typeDefinition.isDateTimeType»
+          «IF repeated»
+            «{ value = value + ".stream().map(v -> com.avaloq.aws.server.util.DateAdapter." + typeToDateAdapter(ed.typeDefinition) + ".toString(v)).collect(java.util.stream.Collectors.toList())"; null }»
+          «ELSE»
+            «{ value = "com.avaloq.aws.server.util.DateAdapter." + typeToDateAdapter(ed.typeDefinition) + ".toString(" + value + ")"; null }»
+          «ENDIF»
+        «ENDIF»
+        «IF repeated»
+          if (value.«ed.toLocal» != null) «toAdapterType(ed.typeDefinition)».asRepeated().encodeWithTag(writer, «fidx», «value»);
+        «ELSEIF required»
+          if (value.«ed.toLocal» != null) «toAdapterType(ed.typeDefinition)».encodeWithTag(writer, «fidx», «value»);
+        «ELSE»
+          if (value.«ed.toLocal» != null) «toAdapterType(ed.typeDefinition)».encodeWithTag(writer, «fidx», «value»);
+        «ENDIF»
+        «{fidx++; null}»
+      «ENDFOR»
+      «IF !fields.empty»
+      long[] bitMasks = value.isSetFlags.toLongArray();
+      for(long bitMask: bitMasks){
+          com.squareup.wire.ProtoAdapter.UINT64.encodeWithTag(writer, «fidx», bitMask);
+      }
+      «ENDIF»
+    }
+  '''
+
+  def generateDecode(String className, List<XSDParticle> fields, List<XSDParticle> dateFields) '''
+    @Override
+    public «className» decode(com.squareup.wire.ProtoReader reader) throws java.io.IOException {
+      «className» obj = new «className»();
+      long token = reader.beginMessage();
+      «IF !fields.empty»
+      java.util.ArrayList<Long> bitMasks = new java.util.ArrayList<>();
+      «ENDIF»
+      for (int tag; (tag = reader.nextTag()) != -1;) {
+        switch (tag) {
+          «var fidx=1»
+          «FOR field: fields»
+            «val pc = field.content»
+            «val ed = pc as XSDElementDeclaration»
+            «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+            «val typeName = ed.typeDefinition.toJava.toString»
+            «var value =  toAdapterType(ed.typeDefinition) + ".decode(reader)"»
+            «if (typeName.endsWith("XMLGregorianCalendar")) {
+              dateFields.add(field);
+              value = "com.avaloq.aws.server.util.DateAdapter." + typeToDateAdapter(ed.typeDefinition) + ".fromString(" + value + ")"
+              null
+            }»
+            «IF repeated»
+              case «fidx»: if(obj.«ed.toLocal» == null) obj.«ed.toLocal» = new java.util.ArrayList<>();
+              obj.«ed.toLocal».add(«value»); break;
+            «ELSE»
+              case «fidx»: obj.«ed.toLocal» = «value»; break;
+            «ENDIF»
+            «{fidx++; null}»
+          «ENDFOR»
+          «IF !fields.empty»
+            case «fidx»: bitMasks.add(com.squareup.wire.ProtoAdapter.UINT64.decode(reader)); break;
+          «ENDIF»
+          default: {
+            com.squareup.wire.FieldEncoding fieldEncoding = reader.peekFieldEncoding();
+            Object value = fieldEncoding.rawProtoAdapter().decode(reader);
+          }
+        }
+      }
+      «IF !fields.empty»
+      long[] bitMaskArray = bitMasks.stream().mapToLong(l -> l).toArray();
+      obj.isSetFlags = java.util.BitSet.valueOf(bitMaskArray);
+      «ENDIF»
+      reader.endMessage(token);
+      return checkForBitmaskArrays(obj);
+    }
+
+    public «className» checkForBitmaskArrays(«className» obj){
+      «var id=0»
+      «FOR field: fields»
+        «val pc = field.content»
+        «val ed = pc as XSDElementDeclaration»
+        «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+        «val getter = ed.getGetter»
+        «IF ed.typeDefinition instanceof XSDComplexTypeDefinition && isListObject(collectParticles(ed.typeDefinition)) && checkRequiredAnnotation(ed)»
+          if(obj.«getter».getArray() == null) obj.«getter».setArray(new java.util.ArrayList<>());
+        «ELSEIF checkRequiredAnnotation(ed) && repeated»
+          if (obj.«ed.toLocal» == null) obj.«ed.toLocal» = new java.util.ArrayList<>();
+        «ENDIF»
+        «{id++; null}»
+      «ENDFOR»
+      return obj;
+    }
+  '''
+
+  /**
+   * The assumption is that a choice never has a bit mask associated with it.
+   */
+  def generateDecodeChoice(String className, List<XSDParticle> fields, List<XSDParticle> dateFields) '''
+    @Override
+    public «className» decode(com.squareup.wire.ProtoReader reader) throws java.io.IOException {
+      «className» obj = new «className»();
+      long token = reader.beginMessage();
+      int tag = reader.nextTag();
+      if (tag != -1) {
+        switch (tag) {
+          «var fidx=1»
+          «FOR field: fields»
+          «val pc = field.content»
+          «val ed = pc as XSDElementDeclaration»
+          «val typeName = ed.typeDefinition.toJava.toString»
+          «var value =  toAdapterType(ed.typeDefinition) + ".decode(reader)"»
+          «if (typeName.endsWith("XMLGregorianCalendar")) {
+            dateFields.add(field);
+            value = "toDate(" + value + ")"
+            null
+          }»
+          case «fidx»: obj.«ed.toLocal» = «value»; break;
+          «{fidx++; null}»
+          «ENDFOR»
+        }
+      }
+
+      reader.endMessage(token);
+      return obj;
+    }
+  '''
+
+
+  def generateExceptionType(XSDTypeDefinition td, Definition definition) '''
+    «val tdClassName = td.getClassName»
+    «val className = tdClassName + "_Exception"»
+    «header()»
+    package «this.packageNameFrom(td)»;
+
+    import javax.xml.ws.WebFault;
+
+    @WebFault(name = "«tdClassName»", targetNamespace = "«td.targetNamespace»")
+    public class «className» extends Exception {
+      private «tdClassName» «tdClassName.toFirstLower»;
+
+      public «className»() {
+        super();
+      }
+
+      public «className»(String message) {
+        super(message);
+      }
+
+      public «className»(String message, Throwable cause) {
+        super(message, cause);
+      }
+
+      public «className»(String message, «tdClassName» «tdClassName.toFirstLower») {
+        super(message);
+        this.«tdClassName.toFirstLower» = «tdClassName.toFirstLower»;
+      }
+
+     public «className»(«tdClassName» «tdClassName.toFirstLower») {
+        super("«tdClassName»");
+        this.«tdClassName.toFirstLower» = «tdClassName.toFirstLower»;
+      }
+
+      public «className»(String message, «tdClassName» «tdClassName.toFirstLower», Throwable cause) {
+        super(message, cause);
+        this.«tdClassName.toFirstLower» = «tdClassName.toFirstLower»;
+      }
+
+    public «tdClassName» getFaultInfo() {
+        return this.«tdClassName.toFirstLower»;
+      }
+    }
+  '''
+
+  def generateType(XSDSimpleTypeDefinition td) '''
+    «val tdClassName = td.getClassName»
+    «val className = tdClassName»
+    «val baseType = td.baseTypeDefinition»
+    «val nullableBaseTypeName = baseType.toNullableJava»
+    «val baseTypeName = baseType.toJava»
+    «header()»
+    package «this.packageNameFrom(td)»;
+    «IF !td.getUntruncatedClassName.equals(className)»
+      // Original Name: «td.getUntruncatedClassName»
+    «ENDIF»
+    public class «className» extends com.avaloq.aws.server.impl.AwsSimpleType {
+      private static org.slf4j.Logger LOGGER =
+        org.slf4j.LoggerFactory.getLogger(«className».class);
+
+      private «className»() {}
+
+      «val enumerationFacets = td.enumerationFacets»
+      «IF enumerationFacets !== null && !enumerationFacets.empty»
+        private final static java.util.Set<Object> enumValues = new java.util.HashSet<>();
+        static {
+          «FOR ef : enumerationFacets»
+            «FOR ev : ef.value»
+              «IF ev instanceof String»
+                «FOR e : ev.split(",")»
+                  «val enumElement = e.trim»
+                  enumValues.add("«enumElement»");
+                «ENDFOR»
+              «ELSE»
+                enumValues.add(«ev»);
+              «ENDIF»
+            «ENDFOR»
+          «ENDFOR»
+        }
+      «ENDIF»
+
+      «IF td.patternFacets !== null && !td.patternFacets.empty»
+        private static java.util.regex.Pattern[][] patterns = {
+          «var count1 = td.patternFacets.length - 1»
+          «FOR patternFacet : td.patternFacets»
+            {
+              «var count2 = patternFacet.value.length - 1»
+              «FOR pattern : patternFacet.value»
+                java.util.regex.Pattern.compile("«StringEscapeUtils.escapeJava(pattern)»")«IF count2 > 0»,«ENDIF»
+                « { count2 = count2 - 1; null } »
+              «ENDFOR»
+            }«IF count1 > 0»,«ENDIF»
+            « { count1 = count1 - 1; null } »
+          «ENDFOR»
+        };
+
+        private static boolean patternsSatisfied(«baseTypeName» _value) {
+          if (_value == null) {
+            return true;
+          } else {
+            for (int i = 0; i < patterns.length; i++) {
+              java.util.regex.Pattern[] pats = patterns[i];
+              for (int j = 0; j < pats.length; j++) {
+                java.util.regex.Pattern p = pats[j];
+                if (p.matcher(_value).matches())
+                  return true;
+              }
+            }
+            return false;
+          }
+        }
+      «ENDIF»
+
+      «var hasValidations = false»
+      public static void validate(«nullableBaseTypeName» _value,
+                           java.util.List<com.avaloq.aws.server.acpwsservice.ErrorDetail> errors,
+                           com.avaloq.aws.server.impl.ImmutableStack<String> contextPath) {
+
+         «IF enumerationFacets !== null && !enumerationFacets.empty»«{ hasValidations = true; null; }»
+           if (!enumValues.contains(_value)) {
+             generateValidationError("Invalid enumeration value (" + _value + ") - allowed values: " + enumValues.toString(), errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.minLengthFacet !== null»«{ hasValidations = true; null; }»
+           if (_value != null && _value.length() < «td.minLengthFacet.value») {
+             generateValidationError("Length (" + _value.length() + ") less than declared minimum", errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.maxLengthFacet !== null»«{ hasValidations = true; null; }»
+           if (_value != null && _value.length() > «td.maxLengthFacet.value») {
+             generateValidationError("Length (" + _value.length() + ") greater than declared maximum", errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.minExclusiveFacet !== null»«{ hasValidations = true; null; }»
+           if (_value != null && («baseTypeName»)_value <= «td.minExclusiveFacet.value») {
+             generateValidationError("Value (" + _value + ") not greater than declared minimum", errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.minInclusiveFacet !== null»«{ hasValidations = true; null; }»
+           if (_value != null && («baseTypeName»)_value < «td.minInclusiveFacet.value») {
+             generateValidationError("Value (" + _value + ") less than declared minimum", errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.maxExclusiveFacet !== null»«{ hasValidations = true; null; }»
+           if (_value != null && («baseTypeName»)_value >= «td.maxExclusiveFacet.value») {
+             generateValidationError("Value (" + _value + ") not less than declared maximum", errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.maxInclusiveFacet !== null»«{ hasValidations = true; null; }»
+           if (_value != null && («baseTypeName»)_value > «td.maxInclusiveFacet.value») {
+             generateValidationError("Value (" + _value + ") greater than declared maximum", errors, contextPath);
+           }
+
+         «ENDIF»
+         «IF td.patternFacets !== null && !td.patternFacets.empty»«{ hasValidations = true; null; }»
+           if (_value != null && !patternsSatisfied(_value)) {
+             generateValidationError("Value (" + _value + ") does not match declared pattern(s)", errors, contextPath);
+           }
+
+         «ENDIF»
+      }
+
+      «IF hasValidations»
+        private static void generateValidationError(String detail,
+            java.util.List<com.avaloq.aws.server.acpwsservice.ErrorDetail> errors,
+            com.avaloq.aws.server.impl.ImmutableStack<String> contextPath) {
+          com.avaloq.aws.server.acpwsservice.ErrorDetail ed = new com.avaloq.aws.server.acpwsservice.ErrorDetail(
+            «IF wsdlSource.generatedFromRAML»ramlPath«ELSE»fullPath«ENDIF»(contextPath),
+            "Validation",
+            detail
+          );
+          errors.add(ed);
+        }
+
+      «ENDIF»
+    }
+  '''
+
+
+  def generatePortType(PortType portType, Definition definition) '''
+    «header()»
+    package «this.packageNameFrom(definition.targetNamespace)»;
+
+    import javax.jws.WebMethod;
+    import javax.jws.WebParam;
+    import javax.jws.WebResult;
+    import javax.xml.soap.SOAPException;
+    import com.avaloq.aws.server.acpwsservice.AcpwsException;
+
+    public interface «portType.getClassName» {
+
+      «FOR operation : portType.operations as List<Operation> SEPARATOR "\n"»
+        «val input = operation.EInput.EMessage»
+        «val inputPart = input.parts.values.get(0) as Part»
+        «val output = operation.EOutput.EMessage»
+        «val outputPart = output.parts.values.get(0) as Part»
+        @WebMethod(operationName = "«operation.getMethod»")
+        @WebResult(name = "«outputPart.elementDeclaration.name»", targetNamespace = "«outputPart.elementDeclaration.targetNamespace»", partName = "«outputPart.name»")
+        public «outputPart.elementDeclaration.name» «operation.getMethod»(
+          @WebParam(partName = "«inputPart.name»", name = "«inputPart.elementDeclaration.name»", targetNamespace = "«inputPart.elementDeclaration.targetNamespace»")
+          «inputPart.elementDeclaration.name» «inputPart.name»
+        ) throws AcpwsException«IF !operation.faults.empty», «operation.exceptionClassNames»«ENDIF»;
+      «ENDFOR»
+    }
+  '''
+
+
+
+  /// SDS Support
+
+  private static def boolean isComplexField(XSDParticle field) {
+    val pc = field.content
+    val ed = pc as XSDElementDeclaration
+    val td = ed.typeDefinition
+    return td instanceof XSDComplexTypeDefinition;
+  }
+
+  private def validatesSDS(XSDParticle field) {
+    val pc = field.content
+    val ed = pc as XSDElementDeclaration
+    val td = ed.typeDefinition
+
+    if (!isPotentialSdsType(td)) {
+      LOGGER.error("SDS annotation should not be attached to '{}'", ed.propertyName)
+    }
+  }
+
+  def boolean isPotentialSdsStringType(XSDTypeDefinition definition) {
+    switch (definition) {
+      XSDComplexTypeDefinition:
+        false
+      XSDSimpleTypeDefinition: {
+        switch (definition.name) {
+          case "string":
+            return true
+          default:
+            if(definition.baseTypeDefinition == definition)
+              return false
+            else // Might be a restriction of a potential SDS type
+            return isPotentialSdsStringType(definition.baseTypeDefinition)
+        }
+      }
+      default: false
+    }
+  }
+
+  def boolean isPotentialSdsDateType(XSDTypeDefinition definition) {
+    switch (definition) {
+      XSDComplexTypeDefinition:
+        false
+      XSDSimpleTypeDefinition: {
+        switch (definition.name) {
+          case "date",
+          case "dateTime",
+          case "dateTimeOnly":
+            return true
+          default:
+            if(definition.baseTypeDefinition == definition)
+              return false
+            else // Might be a restriction of a potential SDS type
+            return isPotentialSdsDateType(definition.baseTypeDefinition)
+        }
+      }
+      default: false
+    }
+  }
+
+  def boolean isPotentialSdsType(XSDTypeDefinition definition) {
+    switch (definition) {
+      XSDComplexTypeDefinition:
+        true
+      XSDSimpleTypeDefinition: {
+        switch (definition.name) {
+          case "date",
+          case "dateTime",
+          case "dateTimeOnly",
+          case "string":
+            return true
+          default:
+            if(definition.baseTypeDefinition == definition)
+              return false
+            else // Might be a restriction of a potential SDS type
+              return isPotentialSdsType(definition.baseTypeDefinition)
+        }
+      }
+      default: false
+    }
+  }
+
+  def generateIncomingSDSMethods(List<XSDParticle> fields) {
+    val sdsFields = fields.filter[it | isSDS || it.isComplexField]
+    sdsFields.forEach[validatesSDS]
+
+    '''
+
+      // Iterate over all the properties finding those that must be replaced by an SDS key
+      @Override
+      public void collectPropertiesToSensitize(
+          java.util.List<String> __textList,
+          java.util.List<javax.xml.datatype.XMLGregorianCalendar> __dateList) {
+        «FOR field: sdsFields»
+          «val pc = field.content»
+          «val ed = pc as XSDElementDeclaration»
+          «val td = ed.typeDefinition»
+          «var typeName = ed.typeDefinition.toNullableJava»
+          «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+          «val getter = ed.getGetter»
+          «IF repeated»
+            if (this.«getter» != null) {
+              for («typeName» __item : this.«getter») {
+                «IF field.isComplexField»
+                  if (__item != null)
+                    __item.collectPropertiesToSensitize(__textList, __dateList);
+                «ELSEIF td.isPotentialSdsStringType»
+                  if (__item != null && !__item.isEmpty())
+                    __textList.add(__item);
+                «ELSEIF td.isPotentialSdsDateType»
+                  if (__item != null)
+                    __dateList.add(__item);
+                «ENDIF»
+              }
+            }
+          «ELSEIF (td instanceof XSDComplexTypeDefinition)»
+            if (this.«getter» != null) {
+              this.«getter».collectPropertiesToSensitize(__textList, __dateList);
+            }
+          «ELSEIF td.isPotentialSdsStringType»
+            if (this.«getter» != null && !this.«getter».isEmpty()) {
+              __textList.add(this.«getter»);
+            }
+          «ELSEIF td.isPotentialSdsDateType»
+            if (this.«getter» != null) {
+              __dateList.add(this.«getter»);
+            }
+          «ENDIF»
+        «ENDFOR»
+      }
+
+      // Iterate over all the properties replacing sensitive data by SDS keys
+      @Override
+      public void sensitizeProperties(
+          java.util.ListIterator<String> __resolvedStrings,
+          java.util.ListIterator<javax.xml.datatype.XMLGregorianCalendar> __resolvedDates) {
+        «FOR field: sdsFields»
+          «val pc = field.content»
+          «val ed = pc as XSDElementDeclaration»
+          «val td = ed.typeDefinition»
+          «var typeName = ed.typeDefinition.toNullableJava»
+          «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+          «val getter = ed.getGetter»
+          «val setter = ed.getSetter»
+          «IF repeated»
+            if (this.«getter» != null) {
+              int __index = 0;
+              for («typeName» __item : this.«getter») {
+                «IF field.isComplexField»
+                  if (__item != null)
+                    __item.sensitizeProperties(__resolvedStrings, __resolvedDates);
+                «ELSE»
+                  «IF td.isPotentialSdsStringType»
+                    if (__item != null && !__item.isEmpty())
+                      this.«getter».set(__index, __resolvedStrings.next());
+                  «ELSEIF td.isPotentialSdsDateType»
+                    if (__item != null)
+                      this.«getter».set(__index, __resolvedDates.next());
+                  «ENDIF»
+                «ENDIF»
+                __index++;
+              }
+            }
+          «ELSEIF (td instanceof XSDComplexTypeDefinition)»
+            if (this.«getter» != null) {
+              this.«getter».sensitizeProperties(__resolvedStrings, __resolvedDates);
+            }
+          «ELSEIF td.isPotentialSdsType»
+            «IF td.isPotentialSdsStringType»
+              if (this.«getter» != null && !this.«getter».isEmpty()) {
+                this.«setter»(__resolvedStrings.next());
+              }
+            «ELSEIF td.isPotentialSdsDateType»
+              if (this.«getter» != null) {
+                this.«setter»(__resolvedDates.next());
+              }
+            «ENDIF»
+          «ENDIF»
+        «ENDFOR»
+      }
+
+      '''
+  }
+
+  // There is an asymmetry between incoming an outgoing messages when it comes to SDS.  On the way in we must replace
+  // sensitive values by SDS keys.  And so we only need to do this for types that are SDS-aware.
+  // On the way out we must ensure SDS keys don't "escape".  And so we must look for SDS keys even if the type isn't
+  // SDS-aware.  Of course it will be an error if we find an SDS key in such as type, resulting in an error being
+  // logged.
+  def generateOutgoingSDSMethods(List<XSDParticle> fields) {
+    val sdsFields = fields.filter[it | isSDS || it.isComplexField]
+    sdsFields.forEach[validatesSDS]
+
+    '''
+
+      static boolean sdsString(String value) {
+        return value != null && value.contains("$#$[");
+      }
+
+      static boolean sdsDate(javax.xml.datatype.XMLGregorianCalendar value) {
+        return value != null && value.getYear() < 0;
+      }
+
+      // Iterate over all the properties finding those that contain an SDS key
+      @Override
+      public void collectSensitiveProperties(
+          java.util.List<String> __textList,
+          com.avaloq.aws.server.impl.ImmutableStack<String> __context) {
+        «FOR field: fields»
+          «val pc = field.content»
+          «val ed = pc as XSDElementDeclaration»
+          «val td = ed.typeDefinition»
+          «val propertyName = ed.propertyName»
+          «var typeName = ed.typeDefinition.toNullableJava»
+          «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+          «val getter = ed.getGetter»
+          «IF repeated && td.isPotentialSdsType»
+            if (this.«getter» != null) {
+              int __index = 0;
+              for («typeName» __item : this.«getter») {
+                «IF field.isComplexField»
+                  __item.collectSensitiveProperties(__textList, __context.push("«propertyName»[" + __index + "]"));
+                «ELSEIF isSDS(field)»
+                  «IF td.isPotentialSdsStringType»
+                    if (sdsString(__item)) {
+                      __textList.add(__item);
+                    }
+                  «ELSEIF td.isPotentialSdsDateType»
+                    if (sdsDate(__item)) {
+                      __textList.add(com.avaloq.aws.server.util.DateUtil.toSDS(__item));
+                    }
+                  «ENDIF»
+                «ELSE»
+                  «IF td.isPotentialSdsStringType»
+                    if (sdsString(__item)) {
+
+                      LOGGER.error("Unexpected sensitive key found in response body property {}",
+                        contextString( __context.push("«propertyName»[" + __index + "]")));
+
+                      __textList.add(__item);
+                    }
+                  «ENDIF»
+                «ENDIF»
+                __index++;
+              }
+            }
+          «ELSEIF (td instanceof XSDComplexTypeDefinition)»
+            if (this.«getter» != null) {
+              this.«getter».collectSensitiveProperties(__textList, __context.push("«propertyName»."));
+            }
+          «ELSEIF td.isPotentialSdsType»
+            «IF isSDS(field)»
+              «IF td.isPotentialSdsStringType»
+                if (sdsString(this.«getter»)) {
+                  __textList.add(this.«getter»);
+                }
+              «ELSEIF td.isPotentialSdsDateType»
+                if (sdsDate(this.«getter»)) {
+                  __textList.add(com.avaloq.aws.server.util.DateUtil.toSDS(this.«getter»));
+                }
+              «ENDIF»
+            «ELSE»
+              «IF td.isPotentialSdsStringType»
+                if (sdsString(this.«getter»)) {
+
+                  LOGGER.error("Unexpected sensitive key found in response body property {}",
+                    contextString(__context) + "«propertyName»");
+
+                  __textList.add(this.«getter»);
+                }
+              «ENDIF»
+            «ENDIF»
+          «ENDIF»
+        «ENDFOR»
+      }
+
+       // Iterate over all the properties replacing those that contain an SDS key by the sensitive value
+      @Override
+      public void replaceSensitiveProperties(java.util.ListIterator<String> __resolved) {
+        «FOR field: fields»
+          «val pc = field.content»
+          «val ed = pc as XSDElementDeclaration»
+          «val td = ed.typeDefinition»
+          «var typeName = ed.typeDefinition.toNullableJava»
+          «val repeated = field.maxOccurs > 1 || field.maxOccurs == XSDParticle.UNBOUNDED»
+          «val getter = ed.getGetter»
+          «val setter = ed.getSetter»
+          «IF repeated && td.isPotentialSdsType»
+            if (this.«getter» != null) {
+              int __index = 0;
+              for («typeName» __item : this.«getter») {
+                «IF field.isComplexField»
+                  __item.replaceSensitiveProperties(__resolved);
+                «ELSEIF isSDS(field)»
+                  «IF td.isPotentialSdsStringType»
+                    if (sdsString(__item)) {
+                      this.«getter».set(__index, __resolved.next());
+                    }
+                  «ELSEIF td.isPotentialSdsDateType»
+                    if (sdsDate(__item)) {
+                      this.«getter».set(__index, com.avaloq.aws.server.util.DateUtil.fromResolvedSDSDateString(__resolved.next()));
+                    }
+                  «ENDIF»
+                «ELSEIF td.isPotentialSdsStringType»
+                  if (sdsString(__item)) {
+                    this.«getter».set(__index, __resolved.next());
+                  }
+                «ENDIF»
+                __index++;
+              }
+            }
+          «ELSEIF (td instanceof XSDComplexTypeDefinition)»
+            if (this.«getter» != null) {
+              this.«getter».replaceSensitiveProperties(__resolved);
+            }
+          «ELSEIF td.isPotentialSdsType»
+            «IF isSDS(field)»
+              «IF td.isPotentialSdsStringType»
+                if (sdsString(this.«getter»)) {
+                  this.«setter»(__resolved.next());
+                }
+              «ELSEIF td.isPotentialSdsDateType»
+                if (sdsDate(this.«getter»)) {
+                  this.«setter»(com.avaloq.aws.server.util.DateUtil.fromResolvedSDSDateString(__resolved.next()));
+                }
+              «ENDIF»
+            «ELSEIF td.isPotentialSdsStringType»
+              if (sdsString(this.«getter»)) {
+                this.«setter»(__resolved.next());
+              }
+            «ENDIF»
+          «ENDIF»
+        «ENDFOR»
+      }
+
+      '''
+  }
+}
