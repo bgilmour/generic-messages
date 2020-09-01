@@ -10,8 +10,10 @@ import com.langtoun.messages.types.FieldEncodingType;
 
 /**
  * An annotation that can be added to fields that are to participate in
- * serialization / deserialization. Fields that are not annotated or that don't
- * define a name for the serialization being processed are ignored.
+ * serialization / deserialization. The annotation allows the field to be
+ * configured as required/optional and sensitive/non-sensitive. If the type that
+ * contains the field is subject to a custom encoding then the field's encoding
+ * can be specified using this annotation.
  */
 @Retention(RUNTIME)
 @Target(FIELD)
@@ -30,29 +32,6 @@ public @interface AwsFieldProperty {
    * @return {@code true} if the field is sensitive, otherwise {@code false}
    */
   boolean isSensitive() default false;
-
-  /**
-   * The name of the field as it should appear in a JSON serialization.
-   * 
-   * @return the JSON property name
-   */
-  String jsonName() default "";
-
-  /**
-   * The name of the field as it should appear in an XML serialization.
-   * 
-   * @return the XML element name
-   */
-  String xmlName() default "";
-
-  /**
-   * The name of the field as it appeared in the API specification. It may not
-   * match the field name if it used characters or conventions that are not
-   * supported for Java identifiers.
-   * 
-   * @return the original field name from the API specification
-   */
-  String originalName() default "";
 
   /**
    * If the field is a member of a type that is subject to custom encoding then

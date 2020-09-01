@@ -2,12 +2,12 @@ package com.langtoun.messages.types.gen.cars;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
 import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.AwsTypeDefinition;
-import com.langtoun.messages.annotations.AwsFieldProperty;
 import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
-import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
+import com.langtoun.messages.generic.AwsCustomEncodingSerializer;
 import com.langtoun.messages.types.AwsComplexType;
 import com.langtoun.messages.types.FieldEncodingType;
 
@@ -16,7 +16,7 @@ import com.langtoun.messages.types.FieldEncodingType;
  * annotated with {@link AwsTypeDefinition} and {@link AwsFieldProperty}.
  *
  */
-@JsonSerialize(using = AwsComplexTypeJsonSerializer.class, as = CustomSimpleCar.class)
+@JsonSerialize(using = AwsCustomEncodingSerializer.class, as = CustomSimpleCar.class)
 @JsonDeserialize(using = AwsComplexTypeJsonDeserializer.class, as = CustomSimpleCar.class)
 // @Format-Off
 @AwsTypeDefinition(
@@ -30,13 +30,13 @@ import com.langtoun.messages.types.FieldEncodingType;
 // @Format-On
 public class CustomSimpleCar extends AwsComplexType {
 
-  @AwsFieldProperty(required = true, originalName = "colour", encoding = FieldEncodingType.JSON)
+  @AwsFieldProperty(required = true, encoding = FieldEncodingType.JSON_URLENCODED)
   private String colour;
 
-  @AwsFieldProperty(required = true, originalName = "type", encoding = FieldEncodingType.XML)
+  @AwsFieldProperty(required = true, encoding = FieldEncodingType.JSON_URLENCODED)
   private String type;
 
-  @AwsFieldProperty(originalName = "right_hand_drive", encoding = FieldEncodingType.XML_URLENCODED)
+  @AwsFieldProperty(encoding = FieldEncodingType.JSON_URLENCODED)
   private Boolean rightHandDrive;
 
   public CustomSimpleCar() {
@@ -63,7 +63,7 @@ public class CustomSimpleCar extends AwsComplexType {
 
   @Override
   public String toString() {
-    return AwsComplexTypeJsonSerializer.serializeCustomEncoding(this);
+    return AwsCustomEncodingSerializer.serializeCustomEncoding(this);
   }
 
 }

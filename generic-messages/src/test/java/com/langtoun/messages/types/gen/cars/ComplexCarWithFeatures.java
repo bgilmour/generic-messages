@@ -5,9 +5,9 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.FieldOrder;
 import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
 import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 
@@ -26,7 +26,7 @@ import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 // @Format-On
 public class ComplexCarWithFeatures extends ComplexCar {
 
-  @AwsFieldProperty(required = true, jsonName = "features")
+  @AwsFieldProperty(required = true)
   private final List<CarFeature> features = new ArrayList<>();
 
   public ComplexCarWithFeatures() {
@@ -49,7 +49,7 @@ public class ComplexCarWithFeatures extends ComplexCar {
 
   @Override
   public String toString() {
-    return super.toString() + " with " + features + "]";
+    return super.toString() + " with " + features;
   }
 
 }

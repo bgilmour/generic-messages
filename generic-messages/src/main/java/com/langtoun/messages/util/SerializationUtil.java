@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -18,9 +19,9 @@ import javax.xml.bind.JAXBException;
 import org.apache.commons.lang3.tuple.Pair;
 
 import com.fasterxml.jackson.databind.node.ValueNode;
-import com.langtoun.messages.annotations.CustomTypeEncoding;
-import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.CustomTypeEncoding;
 import com.langtoun.messages.types.CustomTypeCodec;
 
 public final class SerializationUtil {
@@ -53,7 +54,8 @@ public final class SerializationUtil {
    * annotation if it is present.
    *
    * @param object the object that is to be inspected
-   * @return an instance of the {@link AwsTypeDefinition} annotation, or {@code null)
+   * @return an instance of the {@link AwsTypeDefinition} annotation, or
+   *         {@code null)
    */
   public static AwsTypeDefinition getTypeDefinition(final Object object) {
     if (object != null) {
@@ -67,7 +69,8 @@ public final class SerializationUtil {
    * annotation if it is present.
    *
    * @param object the object that is to be inspected
-   * @return an instance of the {@link AwsTypeDefinition} annotation, or {@code null)
+   * @return an instance of the {@link AwsTypeDefinition} annotation, or
+   *         {@code null)
    */
   public static AwsTypeDefinition getTypeDefinition(final Class<?> clazz) {
     return clazz.getAnnotation(AwsTypeDefinition.class);
@@ -162,8 +165,8 @@ public final class SerializationUtil {
 
   /**
    * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
-   * {@link AwsFieldProperty} annotations for annotated fields in all superclasses of
-   * the supplied {@code Class}.
+   * {@link AwsFieldProperty} annotations for annotated fields in all superclasses
+   * of the supplied {@code Class}.
    *
    * @param clazz the class whose superclasses' annotated fields are to be
    *              retrieved
@@ -176,8 +179,8 @@ public final class SerializationUtil {
 
   /**
    * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
-   * {@link AwsFieldProperty} annotations for annotated fields in the class hierarchy
-   * of the supplied {@code Class}.
+   * {@link AwsFieldProperty} annotations for annotated fields in the class
+   * hierarchy of the supplied {@code Class}.
    *
    * @param clazz the class whose class hierarchy's annotated fields are to be
    *              retrieved
@@ -237,6 +240,20 @@ public final class SerializationUtil {
     } else {
       return field.getType();
     }
+  }
+
+  public static String consumeRequiredTokenAtStart(final String encoded, final String token, Supplier<String> exceptionMessage) {
+    if (encoded.startsWith(token)) {
+      return encoded.substring(token.length());
+    }
+    throw new IllegalStateException(exceptionMessage.get());
+  }
+
+  public static String consumeRequiredTokenAtEnd(final String encoded, final String token, Supplier<String> exceptionMessage) {
+    if (encoded.endsWith(token)) {
+      return encoded.substring(0, encoded.length() - token.length());
+    }
+    throw new IllegalStateException(exceptionMessage.get());
   }
 
   // TODO: add more Java types
