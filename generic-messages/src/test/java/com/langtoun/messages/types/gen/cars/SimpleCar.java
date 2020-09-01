@@ -2,9 +2,9 @@ package com.langtoun.messages.types.gen.cars;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.FieldOrder;
 import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
 import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 import com.langtoun.messages.types.AwsComplexType;
@@ -24,13 +24,13 @@ import com.langtoun.messages.types.AwsComplexType;
 // @Format-On
 public class SimpleCar extends AwsComplexType {
 
-  @AwsFieldProperty(required = true, jsonName = "colour")
+  @AwsFieldProperty(required = true)
   private String colour;
 
-  @AwsFieldProperty(required = true, jsonName = "type")
+  @AwsFieldProperty(required = true)
   private String type;
 
-  @AwsFieldProperty(jsonName = "rhs")
+  @AwsFieldProperty
   private Boolean rightHandDrive;
 
   public SimpleCar() {

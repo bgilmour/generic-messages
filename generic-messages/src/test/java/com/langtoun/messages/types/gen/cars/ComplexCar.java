@@ -2,9 +2,9 @@ package com.langtoun.messages.types.gen.cars;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.FieldOrder;
 import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
 import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 
@@ -23,7 +23,7 @@ import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 // @Format-On
 public class ComplexCar extends SimpleCar {
 
-  @AwsFieldProperty(required = true, jsonName = "engine")
+  @AwsFieldProperty(required = true)
   private CarEngine engine;
 
   public ComplexCar() {
