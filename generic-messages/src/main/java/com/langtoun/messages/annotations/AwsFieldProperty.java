@@ -15,7 +15,7 @@ import com.langtoun.messages.types.FieldEncodingType;
  */
 @Retention(RUNTIME)
 @Target(FIELD)
-public @interface TypeProperty {
+public @interface AwsFieldProperty {
 
   /**
    * Determines whether the field is required or optional.

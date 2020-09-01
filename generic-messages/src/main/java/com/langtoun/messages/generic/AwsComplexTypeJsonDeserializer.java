@@ -35,28 +35,29 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.ValueNode;
 import com.google.common.collect.Streams;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
-import com.langtoun.messages.annotations.TypeDefinition;
-import com.langtoun.messages.annotations.TypeProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.types.AwsComplexType;
 import com.langtoun.messages.types.CustomTypeCodec;
 import com.langtoun.messages.types.FieldEncodingType;
 import com.langtoun.messages.util.SerializationUtil;
 
 /**
- * JSON deserializer for types that implement the {@link SerializablePayload}
- * interface.
+ * JSON deserializer for types that extend the {@link AwsComplexType} base
+ * class.
  *
  */
-public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayload> implements ContextualDeserializer {
+public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexType> implements ContextualDeserializer {
 
   private static final ObjectMapper objectMapper = new ObjectMapper();
 
   private JavaType javaType;
 
-  public PayloadJsonDeserializer() {
+  public AwsComplexTypeJsonDeserializer() {
 
   }
 
-  public PayloadJsonDeserializer(final JavaType javaType) {
+  public AwsComplexTypeJsonDeserializer(final JavaType javaType) {
     this.javaType = javaType;
   }
 
@@ -64,22 +65,22 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
   public JsonDeserializer<?> createContextual(final DeserializationContext context, final BeanProperty property)
       throws JsonMappingException {
     final JavaType javaType = context.getContextualType() != null ? context.getContextualType() : property.getMember().getType();
-    return new PayloadJsonDeserializer(javaType);
+    return new AwsComplexTypeJsonDeserializer(javaType);
   }
 
   @Override
-  public SerializablePayload deserialize(final JsonParser parser, final DeserializationContext context)
+  public AwsComplexType deserialize(final JsonParser parser, final DeserializationContext context)
       throws IOException, JsonProcessingException {
     System.out.println("deserialize : " + javaType.getTypeName());
     /*
      * check that the type is annotated with TypeDefinition
      */
-    final TypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(javaType.getRawClass());
+    final AwsTypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(javaType.getRawClass());
     if (typeDefinition != null) {
       try {
         final JsonNode rootNode = parser.getCodec().readTree(parser);
-        final SerializablePayload value = (SerializablePayload) javaType.getRawClass().getConstructor().newInstance();
-        return deserializePayload(value, rootNode, typeDefinition);
+        final AwsComplexType value = (AwsComplexType) javaType.getRawClass().getConstructor().newInstance();
+        return deserializeComplexType(value, rootNode, typeDefinition);
       } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
           | SecurityException e) {
         throw new IllegalArgumentException(String.format("unable to deserialize an instance of type[%s]", javaType.getTypeName()),
@@ -90,16 +91,16 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     }
   }
 
-  private static SerializablePayload deserializePayload(final SerializablePayload value, final JsonNode rootNode,
-      final TypeDefinition typeDefinition) {
+  private static AwsComplexType deserializeComplexType(final AwsComplexType value, final JsonNode rootNode,
+      final AwsTypeDefinition typeDefinition) {
     if (SerializationUtil.usesCustomTypeEncoding(typeDefinition.encoding())) {
       return deserializeCustomEncoding(value, rootNode, typeDefinition);
     }
-    return deserializePayload(value, rootNode, typeDefinition, "/", "  ");
+    return deserializeComplexType(value, rootNode, typeDefinition, "/", "  ");
   }
 
-  private static SerializablePayload deserializeCustomEncoding(final SerializablePayload value, final JsonNode rootNode,
-      final TypeDefinition typeDefinition) {
+  private static AwsComplexType deserializeCustomEncoding(final AwsComplexType value, final JsonNode rootNode,
+      final AwsTypeDefinition typeDefinition) {
     if (typeDefinition.encoding().codec() == CustomTypeCodec.GQL) {
       /*
        * process using the GQL serializer
@@ -118,22 +119,22 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     }
   }
 
-  private static SerializablePayload deserializePayload(final SerializablePayload value, final JsonNode rootNode,
-      final TypeDefinition typeDefinition, final String nodePath, final String indent) {
+  private static AwsComplexType deserializeComplexType(final AwsComplexType value, final JsonNode rootNode,
+      final AwsTypeDefinition typeDefinition, final String nodePath, final String indent) {
     /*
      * retrieve the fields annotated with TypeProperty and compute the field order
      */
-    final Map<String, Pair<Field, TypeProperty>> fieldProperties = SerializationUtil
+    final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationUtil
         .getHierarchyFieldsWithTypeProperty(value.getClass());
     final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
     /*
      * iterate over the fields to be deserialized
      */
     for (final String fieldName : fieldOrder) {
-      final Pair<Field, TypeProperty> fieldProperty = fieldProperties.get(fieldName);
+      final Pair<Field, AwsFieldProperty> fieldProperty = fieldProperties.get(fieldName);
       if (fieldProperty != null) {
         final Field field = fieldProperty.getKey();
-        final TypeProperty property = fieldProperty.getValue();
+        final AwsFieldProperty property = fieldProperty.getValue();
         /*
          * find each property in turn and populate the payload, creating new payload
          * objects as the deserializer walks the node tree
@@ -170,7 +171,7 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     return value;
   }
 
-  private static List<Object> readArrayValues(final ArrayNode arrayNode, final Field field, final TypeProperty property,
+  private static List<Object> readArrayValues(final ArrayNode arrayNode, final Field field, final AwsFieldProperty property,
       final String nodePath, final String indent) {
     final String fieldName = property.jsonName();
     final Iterator<JsonNode> iter = arrayNode.elements();
@@ -206,10 +207,10 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
   private static Object readComplexValue(final ObjectNode objectNode, final String fieldName, Field field, final String nodePath,
       final String indent) {
     final Class<?> fieldType = SerializationUtil.getValueType(field);
-    if (SerializablePayload.class.isAssignableFrom(fieldType)) {
+    if (AwsComplexType.class.isAssignableFrom(fieldType)) {
       try {
-        final SerializablePayload value = (SerializablePayload) fieldType.getConstructor().newInstance();
-        return deserializePayload(value, objectNode, SerializationUtil.getTypeDefinition(fieldType), nodePath + fieldName + "/",
+        final AwsComplexType value = (AwsComplexType) fieldType.getConstructor().newInstance();
+        return deserializeComplexType(value, objectNode, SerializationUtil.getTypeDefinition(fieldType), nodePath + fieldName + "/",
             indent + "  ");
       } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
           | SecurityException e) {
@@ -222,8 +223,8 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     }
   }
 
-  private static SerializablePayload deserializeCustomEncoding(final SerializablePayload value, final String encoded,
-      final TypeDefinition typeDefinition) {
+  private static AwsComplexType deserializeCustomEncoding(final AwsComplexType value, final String encoded,
+      final AwsTypeDefinition typeDefinition) {
     final String valueTypeName = value.getClass().getTypeName();
     String remaining = encoded;
     final CustomTypeEncoding typeEncoding = typeDefinition.encoding();
@@ -246,7 +247,7 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     /*
      * decode each field in the order specified in the computed field order
      */
-    final Map<String, Pair<Field, TypeProperty>> fieldProperties = SerializationUtil
+    final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationUtil
         .getHierarchyFieldsWithTypeProperty(value.getClass());
     final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
     /*
@@ -279,16 +280,16 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
     /*
      * iterate over the fields that are to be decoded
      */
-    String decodedValue = null;
+    String encodedField = null;
     for (final String fieldName : fieldOrder) {
       /*
        * skip over any fields that the preprocessor has determined are to be ignored
        */
 //      if (!ignoredField) { // due to preprocessor directives
 
-      final Pair<Field, TypeProperty> fieldProperty = fieldProperties.get(fieldName);
+      final Pair<Field, AwsFieldProperty> fieldProperty = fieldProperties.get(fieldName);
       final Field field = fieldProperty.getKey();
-      final TypeProperty property = fieldProperty.getValue();
+      final AwsFieldProperty property = fieldProperty.getValue();
       final Class<?> fieldType = field.getType();
       final boolean repeated = List.class.isAssignableFrom(fieldType);
 
@@ -299,57 +300,57 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
           /*
            * retrieve the encoded field and take action if it's a missing required field
            */
-          decodedValue = encodedFieldMap.get(fieldName);
-          if (decodedValue == null && property.required()) {
+          encodedField = encodedFieldMap.get(fieldName);
+          if (encodedField == null && property.required()) {
             throw new IllegalArgumentException(
                 String.format("failed to find an entry for required field[%s] in type[%s]", fieldName, valueTypeName));
           }
-          if (decodedValue != null) {
+          if (encodedField != null) {
             final FieldEncodingType fieldEncoding = property.encoding();
             if (fieldEncoding == FieldEncodingType.XML_URLENCODED || fieldEncoding == FieldEncodingType.JSON_URLENCODED) {
-              decodedValue = URLDecoder.decode(decodedValue, "UTF-8").trim();
+              encodedField = URLDecoder.decode(encodedField, "UTF-8").trim();
             } else {
-              decodedValue = decodedValue.trim();
+              encodedField = encodedField.trim();
             }
-            if (decodedValue.startsWith("\"") && decodedValue.endsWith("\"")) {
-              decodedValue = decodedValue.substring(1, decodedValue.length() - 1);
+            if (encodedField.startsWith("\"") && encodedField.endsWith("\"")) {
+              encodedField = encodedField.substring(1, encodedField.length() - 1);
             }
             if (fieldEncoding != FieldEncodingType.UNKNOWN) {
               if (fieldEncoding == FieldEncodingType.XML || fieldEncoding == FieldEncodingType.XML_URLENCODED) {
                 final JAXBContext jaxbContext = SerializationUtil.getJaxbContextFor((Class<?>) (repeated ? List.class : fieldType));
-                final InputStream xmlStream = new java.io.ByteArrayInputStream(decodedValue.getBytes());
+                final InputStream xmlStream = new java.io.ByteArrayInputStream(encodedField.getBytes());
                 final Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
                 SerializationUtil.setValue(valueTypeName, unmarshaller.unmarshal(xmlStream), field);
                 // SerializationUtil.setValue(com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream,
                 // jaxbContext), field);
               } else if (fieldEncoding == FieldEncodingType.JSON || fieldEncoding == FieldEncodingType.JSON_URLENCODED) {
                 SerializationUtil.setValue(value,
-                    objectMapper.readValue(decodedValue, (Class<?>) (repeated ? List.class : fieldType)), field);
+                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field);
               } else if (fieldEncoding == FieldEncodingType.BASE64) {
                 final Base64 base64Url = new Base64(true);
-                decodedValue = new String(base64Url.decode(decodedValue));
+                encodedField = new String(base64Url.decode(encodedField));
                 SerializationUtil.setValue(value,
-                    objectMapper.readValue(decodedValue, (Class<?>) (repeated ? List.class : fieldType)), field);
+                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field);
               }
             } else {
               // Try to dynamically infer the encoding from the contents
-              if (decodedValue.startsWith("{") || decodedValue.startsWith("[")) {
+              if (encodedField.startsWith("{") || encodedField.startsWith("[")) {
                 SerializationUtil.setValue(value,
-                    objectMapper.readValue(decodedValue, (Class<?>) (repeated ? List.class : fieldType)), field);
-              } else if (decodedValue.startsWith("<")) {
+                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field);
+              } else if (encodedField.startsWith("<")) {
                 javax.xml.bind.JAXBContext jaxbContext = SerializationUtil
                     .getJaxbContextFor((Class<?>) (repeated ? List.class : fieldType));
-                java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(decodedValue.getBytes());
+                java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(encodedField.getBytes());
                 final Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
                 SerializationUtil.setValue(valueTypeName, unmarshaller.unmarshal(xmlStream), field);
                 // SerializationUtil.setValue(com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream,
                 // jaxbContext), field);
               } else {
-                if (!SerializablePayload.class.isAssignableFrom(fieldType)) {
-                  SerializationUtil.setValue(valueTypeName, SerializationUtil.coerceFromString(decodedValue, fieldType), field);
+                if (!AwsComplexType.class.isAssignableFrom(fieldType)) {
+                  SerializationUtil.setValue(valueTypeName, SerializationUtil.coerceFromString(encodedField, fieldType), field);
                 } else {
                   throw new IllegalArgumentException(String
-                      .format("unable to deserialize an instance of type[%s] from encoded field[%s]", valueTypeName, decodedValue));
+                      .format("unable to deserialize an instance of type[%s] from encoded field[%s]", valueTypeName, encodedField));
                 }
               }
             }
@@ -362,7 +363,7 @@ public class PayloadJsonDeserializer extends JsonDeserializer<SerializablePayloa
           throw (IllegalArgumentException) e;
         } else {
           throw new IllegalArgumentException(
-              String.format("failed to decode property[%s] for type[%s], field[%s]", decodedValue, valueTypeName, fieldName), e);
+              String.format("failed to decode property[%s] for type[%s], field[%s]", encodedField, valueTypeName, fieldName), e);
         }
       }
 

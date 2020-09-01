@@ -19,8 +19,8 @@ import org.apache.commons.lang3.tuple.Pair;
 
 import com.fasterxml.jackson.databind.node.ValueNode;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
-import com.langtoun.messages.annotations.TypeDefinition;
-import com.langtoun.messages.annotations.TypeProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
 import com.langtoun.messages.types.CustomTypeCodec;
 
 public final class SerializationUtil {
@@ -49,13 +49,13 @@ public final class SerializationUtil {
   }
 
   /**
-   * Inspect the supplied {@code Object} and return the {@link TypeDefinition}
+   * Inspect the supplied {@code Object} and return the {@link AwsTypeDefinition}
    * annotation if it is present.
    *
    * @param object the object that is to be inspected
-   * @return an instance of the {@link TypeDefinition} annotation, or {@code null)
+   * @return an instance of the {@link AwsTypeDefinition} annotation, or {@code null)
    */
-  public static TypeDefinition getTypeDefinition(final Object object) {
+  public static AwsTypeDefinition getTypeDefinition(final Object object) {
     if (object != null) {
       return getTypeDefinition(object.getClass());
     }
@@ -63,14 +63,14 @@ public final class SerializationUtil {
   }
 
   /**
-   * Inspect the supplied {@code Object} and return the {@link TypeDefinition}
+   * Inspect the supplied {@code Object} and return the {@link AwsTypeDefinition}
    * annotation if it is present.
    *
    * @param object the object that is to be inspected
-   * @return an instance of the {@link TypeDefinition} annotation, or {@code null)
+   * @return an instance of the {@link AwsTypeDefinition} annotation, or {@code null)
    */
-  public static TypeDefinition getTypeDefinition(final Class<?> clazz) {
-    return clazz.getAnnotation(TypeDefinition.class);
+  public static AwsTypeDefinition getTypeDefinition(final Class<?> clazz) {
+    return clazz.getAnnotation(AwsTypeDefinition.class);
   }
 
   /**
@@ -92,9 +92,9 @@ public final class SerializationUtil {
    * annotated for processing by the generic serialization components.
    *
    * @param object the object that is to be search for annotated fields
-   * @return a map of {@link Field}s and {@link TypeProperty} annotations
+   * @return a map of {@link Field}s and {@link AwsFieldProperty} annotations
    */
-  public static Map<Field, TypeProperty> getFieldProperties(final Object object) {
+  public static Map<Field, AwsFieldProperty> getFieldProperties(final Object object) {
     return getFieldProperties(object.getClass());
   }
 
@@ -104,11 +104,11 @@ public final class SerializationUtil {
    * annotated for processing by the generic serialization components.
    *
    * @param clazz the class that is to be search for annotated fields
-   * @return a map of {@link Field}s and {@link TypeProperty} annotations
+   * @return a map of {@link Field}s and {@link AwsFieldProperty} annotations
    */
-  public static Map<Field, TypeProperty> getFieldProperties(final Class<?> clazz) {
-    return Stream.of(clazz.getDeclaredFields()).filter(f -> f.isAnnotationPresent(TypeProperty.class))
-        .collect(Collectors.toMap(Function.identity(), f -> f.getAnnotation(TypeProperty.class)));
+  public static Map<Field, AwsFieldProperty> getFieldProperties(final Class<?> clazz) {
+    return Stream.of(clazz.getDeclaredFields()).filter(f -> f.isAnnotationPresent(AwsFieldProperty.class))
+        .collect(Collectors.toMap(Function.identity(), f -> f.getAnnotation(AwsFieldProperty.class)));
   }
 
   /**
@@ -149,48 +149,48 @@ public final class SerializationUtil {
 
   /**
    * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
-   * {@link TypeProperty} annotations for annotated fields in the supplied
+   * {@link AwsFieldProperty} annotations for annotated fields in the supplied
    * {@code Class}.
    *
    * @param clazz the class whose annotated fields are to be retrieved
-   * @return a map of pairs of {@link Field} objects and {@link TypeProperty}
+   * @return a map of pairs of {@link Field} objects and {@link AwsFieldProperty}
    *         annotations
    */
-  public static Map<String, Pair<Field, TypeProperty>> getDeclaredFieldsWithTypeProperty(final Class<?> clazz) {
+  public static Map<String, Pair<Field, AwsFieldProperty>> getDeclaredFieldsWithTypeProperty(final Class<?> clazz) {
     return getDeclaredFieldsWithAnnotation(Stream.of(clazz.getDeclaredFields()));
   }
 
   /**
    * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
-   * {@link TypeProperty} annotations for annotated fields in all superclasses of
+   * {@link AwsFieldProperty} annotations for annotated fields in all superclasses of
    * the supplied {@code Class}.
    *
    * @param clazz the class whose superclasses' annotated fields are to be
    *              retrieved
-   * @return a map of pairs of {@link Field} objects and {@link TypeProperty}
+   * @return a map of pairs of {@link Field} objects and {@link AwsFieldProperty}
    *         annotations
    */
-  public static Map<String, Pair<Field, TypeProperty>> getSuperclassFieldsWithTypeProperty(final Class<?> clazz) {
+  public static Map<String, Pair<Field, AwsFieldProperty>> getSuperclassFieldsWithTypeProperty(final Class<?> clazz) {
     return getDeclaredFieldsWithAnnotation(getSuperclasses(clazz).stream().flatMap(c -> Stream.of(c.getDeclaredFields())));
   }
 
   /**
    * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
-   * {@link TypeProperty} annotations for annotated fields in the class hierarchy
+   * {@link AwsFieldProperty} annotations for annotated fields in the class hierarchy
    * of the supplied {@code Class}.
    *
    * @param clazz the class whose class hierarchy's annotated fields are to be
    *              retrieved
-   * @return a map of pairs of {@link Field} objects and {@link TypeProperty}
+   * @return a map of pairs of {@link Field} objects and {@link AwsFieldProperty}
    *         annotations
    */
-  public static Map<String, Pair<Field, TypeProperty>> getHierarchyFieldsWithTypeProperty(final Class<?> clazz) {
+  public static Map<String, Pair<Field, AwsFieldProperty>> getHierarchyFieldsWithTypeProperty(final Class<?> clazz) {
     return getDeclaredFieldsWithAnnotation(getClassHierarchy(clazz).stream().flatMap(c -> Stream.of(c.getDeclaredFields())));
   }
 
-  private static Map<String, Pair<Field, TypeProperty>> getDeclaredFieldsWithAnnotation(final Stream<Field> stream) {
-    return stream.filter(f -> f.isAnnotationPresent(TypeProperty.class))
-        .collect(Collectors.toMap(f -> f.getName(), f -> Pair.of(f, f.getAnnotation(TypeProperty.class))));
+  private static Map<String, Pair<Field, AwsFieldProperty>> getDeclaredFieldsWithAnnotation(final Stream<Field> stream) {
+    return stream.filter(f -> f.isAnnotationPresent(AwsFieldProperty.class))
+        .collect(Collectors.toMap(f -> f.getName(), f -> Pair.of(f, f.getAnnotation(AwsFieldProperty.class))));
   }
 
   /**
@@ -198,12 +198,12 @@ public final class SerializationUtil {
    * prefer the array from the TypeDefinition annotation, otherwise return the key
    * set from the field properties map as an array.
    *
-   * @param typeDefinition  the {@link TypeDefinition} from the annotated type
+   * @param typeDefinition  the {@link AwsTypeDefinition} from the annotated type
    * @param fieldProperties the field properties map calculated by traversing the
    *                        annotated type's class hierarchy
    * @return an array of field names that defines the field order
    */
-  public static String[] computeFieldOrder(final TypeDefinition typeDefinition, final Map<String, ?> fieldProperties) {
+  public static String[] computeFieldOrder(final AwsTypeDefinition typeDefinition, final Map<String, ?> fieldProperties) {
     return typeDefinition.fieldOrder().value().length > 0 ? typeDefinition.fieldOrder().value()
         : fieldProperties.keySet().toArray(new String[] {});
   }

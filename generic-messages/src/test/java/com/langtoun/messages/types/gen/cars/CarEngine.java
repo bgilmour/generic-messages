@@ -3,31 +3,31 @@ package com.langtoun.messages.types.gen.cars;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.TypeDefinition;
-import com.langtoun.messages.annotations.TypeProperty;
-import com.langtoun.messages.generic.PayloadJsonDeserializer;
-import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.generic.SerializablePayload;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
+import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
+import com.langtoun.messages.types.AwsComplexType;
 
 /**
- * Surrogate for a generated type that implements {@link SerializablePayload}.
+ * Surrogate for a generated type that extends {@link AwsComplexType}.
  *
  */
-@JsonSerialize(using = PayloadJsonSerializer.class, as = CarEngine.class)
-@JsonDeserialize(using = PayloadJsonDeserializer.class, as = CarEngine.class)
+@JsonSerialize(using = AwsComplexTypeJsonSerializer.class, as = CarEngine.class)
+@JsonDeserialize(using = AwsComplexTypeJsonDeserializer.class, as = CarEngine.class)
 // @Format-Off
-@TypeDefinition(
+@AwsTypeDefinition(
   fieldOrder = @FieldOrder({
     "cylinders", "fuelType"
   })
 )
 // @Format-On
-public class CarEngine implements SerializablePayload {
+public class CarEngine extends AwsComplexType {
 
-  @TypeProperty(required = true, jsonName = "cyls")
+  @AwsFieldProperty(required = true, jsonName = "cyls")
   private Integer cylinders;
 
-  @TypeProperty(jsonName = "fuel")
+  @AwsFieldProperty(jsonName = "fuel")
   private String fuelType;
 
   public CarEngine() {

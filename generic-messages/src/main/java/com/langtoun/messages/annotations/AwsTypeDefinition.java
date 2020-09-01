@@ -8,7 +8,7 @@ import java.lang.annotation.Target;
 
 @Retention(RUNTIME)
 @Target(TYPE)
-public @interface TypeDefinition {
+public @interface AwsTypeDefinition {
 
   /**
    * This is an annotation that allows the developer / source generator to define

@@ -3,20 +3,19 @@ package com.langtoun.messages.types.gen.cars;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.TypeDefinition;
-import com.langtoun.messages.annotations.TypeProperty;
-import com.langtoun.messages.generic.PayloadJsonDeserializer;
-import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.generic.SerializablePayload;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
+import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 
 /**
- * Surrogate for a generated type that implements {@link SerializablePayload}.
+ * Surrogate for a generated type that extends {@link SimpleCar}.
  *
  */
-@JsonSerialize(using = PayloadJsonSerializer.class, as = ComplexCar.class)
-@JsonDeserialize(using = PayloadJsonDeserializer.class, as = ComplexCar.class)
+@JsonSerialize(using = AwsComplexTypeJsonSerializer.class, as = ComplexCar.class)
+@JsonDeserialize(using = AwsComplexTypeJsonDeserializer.class, as = ComplexCar.class)
 // @Format-Off
-@TypeDefinition(
+@AwsTypeDefinition(
   fieldOrder = @FieldOrder({
     "colour", "type", "rightHandDrive", "engine"
   })
@@ -24,7 +23,7 @@ import com.langtoun.messages.generic.SerializablePayload;
 // @Format-On
 public class ComplexCar extends SimpleCar {
 
-  @TypeProperty(required = true, jsonName = "engine")
+  @AwsFieldProperty(required = true, jsonName = "engine")
   private CarEngine engine;
 
   public ComplexCar() {

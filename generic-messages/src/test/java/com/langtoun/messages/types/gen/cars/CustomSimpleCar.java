@@ -4,22 +4,22 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
 import com.langtoun.messages.annotations.FieldOrder;
-import com.langtoun.messages.annotations.TypeDefinition;
-import com.langtoun.messages.annotations.TypeProperty;
-import com.langtoun.messages.generic.PayloadJsonDeserializer;
-import com.langtoun.messages.generic.PayloadJsonSerializer;
-import com.langtoun.messages.generic.SerializablePayload;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
+import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
+import com.langtoun.messages.types.AwsComplexType;
 import com.langtoun.messages.types.FieldEncodingType;
 
 /**
- * Surrogate for a generated type that implements {@link SerializablePayload}
- * and is annotated with {@link CustomTypeEncoding} and {@link TypeProperty}.
+ * Surrogate for a generated type that extends {@link AwsComplexType} and is
+ * annotated with {@link AwsTypeDefinition} and {@link AwsFieldProperty}.
  *
  */
-@JsonSerialize(using = PayloadJsonSerializer.class, as = CustomSimpleCar.class)
-@JsonDeserialize(using = PayloadJsonDeserializer.class, as = CustomSimpleCar.class)
+@JsonSerialize(using = AwsComplexTypeJsonSerializer.class, as = CustomSimpleCar.class)
+@JsonDeserialize(using = AwsComplexTypeJsonDeserializer.class, as = CustomSimpleCar.class)
 // @Format-Off
-@TypeDefinition(
+@AwsTypeDefinition(
   fieldOrder = @FieldOrder({
     "colour", "type", "rightHandDrive"
   }),
@@ -28,15 +28,15 @@ import com.langtoun.messages.types.FieldEncodingType;
   )
 )
 // @Format-On
-public class CustomSimpleCar implements SerializablePayload {
+public class CustomSimpleCar extends AwsComplexType {
 
-  @TypeProperty(required = true, originalName = "colour", encoding = FieldEncodingType.JSON)
+  @AwsFieldProperty(required = true, originalName = "colour", encoding = FieldEncodingType.JSON)
   private String colour;
 
-  @TypeProperty(required = true, originalName = "type", encoding = FieldEncodingType.XML)
+  @AwsFieldProperty(required = true, originalName = "type", encoding = FieldEncodingType.XML)
   private String type;
 
-  @TypeProperty(originalName = "right_hand_drive", encoding = FieldEncodingType.XML_URLENCODED)
+  @AwsFieldProperty(originalName = "right_hand_drive", encoding = FieldEncodingType.XML_URLENCODED)
   private Boolean rightHandDrive;
 
   public CustomSimpleCar() {
@@ -63,7 +63,7 @@ public class CustomSimpleCar implements SerializablePayload {
 
   @Override
   public String toString() {
-    return PayloadJsonSerializer.serializeCustomEncoding(this);
+    return AwsComplexTypeJsonSerializer.serializeCustomEncoding(this);
   }
 
 }

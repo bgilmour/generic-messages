@@ -23,37 +23,37 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
-import com.langtoun.messages.annotations.TypeDefinition;
-import com.langtoun.messages.annotations.TypeProperty;
+import com.langtoun.messages.annotations.AwsTypeDefinition;
+import com.langtoun.messages.annotations.AwsFieldProperty;
+import com.langtoun.messages.types.AwsComplexType;
 import com.langtoun.messages.types.CustomTypeCodec;
 import com.langtoun.messages.types.FieldEncodingType;
 import com.langtoun.messages.util.SerializationUtil;
 
 /**
- * JSON serializer for types that implement the {@link SerializablePayload}
- * interface.
+ * JSON serializer for types that extend the {@link AwsComplexType} base class.
  *
  */
-public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
+public class AwsComplexTypeJsonSerializer extends JsonSerializer<AwsComplexType> {
 
   private static final ObjectMapper objectMapper = new ObjectMapper();
 
   @Override
-  public void serialize(final SerializablePayload payload, final JsonGenerator gen, final SerializerProvider serializers)
+  public void serialize(final AwsComplexType payload, final JsonGenerator gen, final SerializerProvider serializers)
       throws IOException {
     serialize(payload, gen);
   }
 
-  private static void serialize(final SerializablePayload value, final JsonGenerator gen) throws IOException {
+  private static void serialize(final AwsComplexType value, final JsonGenerator gen) throws IOException {
     /*
      * check that the type is annotated with TypeDefinition
      */
-    final TypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
+    final AwsTypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
     if (typeDefinition != null) {
       if (SerializationUtil.usesCustomTypeEncoding(typeDefinition.encoding())) {
         gen.writeString(serializeCustomEncoding(value, typeDefinition));
       } else {
-        serializePayload(value, typeDefinition, gen);
+        serializeComplexType(value, typeDefinition, gen);
       }
     } else {
       throw new IllegalArgumentException(
@@ -61,11 +61,11 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
     }
   }
 
-  public static String serializeCustomEncoding(final SerializablePayload value) {
+  public static String serializeCustomEncoding(final AwsComplexType value) {
     /*
      * check that the type is annotated with TypeDefinition
      */
-    final TypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
+    final AwsTypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
     if (typeDefinition != null) {
       return serializeCustomEncoding(value, SerializationUtil.getTypeDefinition(value));
     } else {
@@ -74,7 +74,7 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
     }
   }
 
-  private static String serializeCustomEncoding(final SerializablePayload value, final TypeDefinition typeDefinition) {
+  private static String serializeCustomEncoding(final AwsComplexType value, final AwsTypeDefinition typeDefinition) {
     final StringBuilder encoded = new StringBuilder();
     if (typeDefinition.encoding().codec() == CustomTypeCodec.GQL) {
       /*
@@ -94,8 +94,8 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
     return encoded.toString();
   }
 
-  private static void serializePayload(final SerializablePayload value, final TypeDefinition typeDefinition,
-      final JsonGenerator gen) throws IOException {
+  private static void serializeComplexType(final AwsComplexType value, final AwsTypeDefinition typeDefinition, final JsonGenerator gen)
+      throws IOException {
     if (value != null) {
       /*
        * open a new object
@@ -104,23 +104,23 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
       /*
        * retrieve the fields annotated with TypeProperty and compute the field order
        */
-      final Map<String, Pair<Field, TypeProperty>> fieldProperties = SerializationUtil
+      final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationUtil
           .getHierarchyFieldsWithTypeProperty(value.getClass());
       final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
       /*
        * iterate over the fields to be serialized
        */
       for (final String fieldName : fieldOrder) {
-        final Pair<Field, TypeProperty> fieldProperty = fieldProperties.get(fieldName);
+        final Pair<Field, AwsFieldProperty> fieldProperty = fieldProperties.get(fieldName);
         final Field field = fieldProperty.getKey();
-        final TypeProperty property = fieldProperty.getValue();
+        final AwsFieldProperty property = fieldProperty.getValue();
         if (List.class.isAssignableFrom(field.getType())) {
           writeArrayValues(property.jsonName(), SerializationUtil.getListValue(value, field), property.required(), gen);
         } else {
           final Object fieldValue = SerializationUtil.getValue(value, field);
-          if (fieldValue instanceof SerializablePayload) {
+          if (fieldValue instanceof AwsComplexType) {
             gen.writeFieldName(property.jsonName());
-            serialize((SerializablePayload) fieldValue, gen);
+            serialize((AwsComplexType) fieldValue, gen);
           } else {
             writeScalarValue(property.jsonName(), fieldValue, property.required(), gen);
           }
@@ -180,8 +180,8 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
   }
 
   private static void writeScalarValue(final Object value, final JsonGenerator gen) throws IOException {
-    if (value instanceof SerializablePayload) {
-      serialize((SerializablePayload) value, gen);
+    if (value instanceof AwsComplexType) {
+      serialize((AwsComplexType) value, gen);
     } else if (value instanceof String) {
       gen.writeString((String) value);
     } else if (value instanceof Integer) {
@@ -196,7 +196,7 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
     }
   }
 
-  private static StringBuilder serializeCustomEncoding(final SerializablePayload value, final TypeDefinition typeDefinition,
+  private static StringBuilder serializeCustomEncoding(final AwsComplexType value, final AwsTypeDefinition typeDefinition,
       final StringBuilder encoded) {
     final CustomTypeEncoding typeEncoding = typeDefinition.encoding();
     /*
@@ -208,7 +208,7 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
     /*
      * encode each field in the order specified in the computed field order
      */
-    final Map<String, Pair<Field, TypeProperty>> fieldProperties = SerializationUtil
+    final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationUtil
         .getHierarchyFieldsWithTypeProperty(value.getClass());
     final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
     /*
@@ -216,15 +216,15 @@ public class PayloadJsonSerializer extends JsonSerializer<SerializablePayload> {
      */
     int index = 0;
     for (final String fieldName : fieldOrder) {
-      final Pair<Field, TypeProperty> fieldProperty = fieldProperties.get(fieldName);
+      final Pair<Field, AwsFieldProperty> fieldProperty = fieldProperties.get(fieldName);
       final Field field = fieldProperty.getKey();
-      final TypeProperty property = fieldProperty.getValue();
+      final AwsFieldProperty property = fieldProperty.getValue();
       final Class<?> fieldType = field.getType();
       final boolean repeated = List.class.isAssignableFrom(fieldType);
 
       String encodedValue = null;
 
-      if (SerializablePayload.class.isAssignableFrom(fieldType)) { // --- complex type ---
+      if (AwsComplexType.class.isAssignableFrom(fieldType)) { // --- complex type ---
         final FieldEncodingType fieldEncoding = property.encoding();
         if (fieldEncoding != null) {
           final Object fieldValue = SerializationUtil.getValue(value, field);
