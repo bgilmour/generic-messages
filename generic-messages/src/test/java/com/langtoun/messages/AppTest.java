@@ -4,6 +4,7 @@ import java.io.IOException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.langtoun.messages.generic.AwsComplexTypeJsonDeserializer;
 import com.langtoun.messages.types.AwsComplexType;
 import com.langtoun.messages.types.gen.cars.CarEngine;
 import com.langtoun.messages.types.gen.cars.CarFeature;
@@ -65,7 +66,7 @@ public class AppTest extends TestCase {
       System.out.println("serialize: engine(" + engine + ") -> " + jsonMapper.writeValueAsString(engine));
       System.out.println("serialize: feature(" + feature + ") -> " + jsonMapper.writeValueAsString(feature));
     } catch (final IOException e) {
-      e.printStackTrace();
+      System.out.println("ERROR: " + e.getMessage());
     }
 
     System.out.println("---- DESERIALIZATION ----");
@@ -89,13 +90,21 @@ public class AppTest extends TestCase {
       System.out.println("deserialize: jsonEngine(" + jsonEngine + ") -> " + deserEngine);
       System.out.println("deserialize: jsonFeature(" + jsonFeature + ") -> " + deserFeature);
     } catch (final JsonProcessingException e) {
-      e.printStackTrace();
+      System.out.println("ERROR: " + e.getMessage());
     }
 
     System.out.println("---- DESERIALIZATION (ERROR) ----");
     try {
       final AwsComplexType deserFailure = jsonMapper.readValue(jsonCar4, ComplexCarWithFeatures.class);
       System.out.println("deserialize: jsonCar4(" + jsonCar4 + ") -> " + deserFailure);
+    } catch (final IllegalStateException e) {
+      System.out.println("ERROR: " + e.getMessage());
+    }
+
+    System.out.println("---- DESERIALIZATION (DIRECT CALL) ----");
+    try {
+      final AwsComplexType deserCar5 = AwsComplexTypeJsonDeserializer.deserialize(jsonCar3, ComplexCarWithFeatures.class);
+      System.out.println("direct: jsonCar3(" + jsonCar3 + ") -> " + deserCar5);
     } catch (final IllegalStateException e) {
       System.out.println("ERROR: " + e.getMessage());
     }
@@ -118,7 +127,7 @@ public class AppTest extends TestCase {
       System.out.println("decode: encodedCar1(" + encodedCar1 + ") -> " + decodedCar1);
       System.out.println("decode: encodedCar2(" + encodedCar2 + ") -> " + decodedCar2);
     } catch (final Exception e) {
-      e.printStackTrace();
+      System.out.println("ERROR: " + e.getMessage());
     }
 
     System.out.println("---- PLAYGROUND STOP ----");

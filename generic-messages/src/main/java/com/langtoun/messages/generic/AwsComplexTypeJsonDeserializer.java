@@ -96,6 +96,15 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
     }
   }
 
+  public static AwsComplexType deserialize(final String json, final Class<?> valueType) {
+    try {
+      return (AwsComplexType) objectMapper.readValue(json, valueType);
+    } catch (JsonProcessingException e) {
+      throw new IllegalArgumentException(
+          String.format("unable to deserialize an instance of type[%s] from input[%s]", valueType.getTypeName(), json), e);
+    }
+  }
+
   private static AwsComplexType deserializeComplexType(final AwsComplexType value, final JsonNode rootNode,
       final AwsTypeDefinition typeDefinition) {
     if (SerializationUtil.usesCustomTypeEncoding(typeDefinition.encoding())) {
@@ -112,7 +121,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
        */
       // TODO: implement the GQL serializer
       return null;
-    } else if (typeDefinition.encoding().codec() == CustomTypeCodec.STD) {
+    } else if (typeDefinition.encoding().codec() == CustomTypeCodec.NONE) {
       /*
        * process using the prefix, suffix, field separator, and key / value separator
        * specified in the annotation
