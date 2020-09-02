@@ -64,7 +64,7 @@ public @interface CustomTypeEncoding {
   String[] fieldSep() default {};
 
   /**
-   * The string that will prefix a custom type encoding.
+   * The string that will separate the key and value in a custom type encoding.
    * 
    * @return the custom type encoding prefix
    */
@@ -75,5 +75,5 @@ public @interface CustomTypeEncoding {
    * 
    * @return the custom type code
    */
-  CustomTypeCodec codec() default CustomTypeCodec.STD;
+  CustomTypeCodec codec() default CustomTypeCodec.NONE;
 }

@@ -90,7 +90,7 @@ public class AwsCustomEncodingSerializer extends JsonSerializer<Object> {
        * process using the GQL serializer
        */
       throw new UnsupportedOperationException("TODO: implement the GQL codec"); // TODO: implement the GQL codec
-    } else if (typeDefinition.encoding().codec() == CustomTypeCodec.STD) {
+    } else if (typeDefinition.encoding().codec() == CustomTypeCodec.NONE) {
       /*
        * process using the prefix, suffix, field separator, and key / value separator
        * specified in the annotation

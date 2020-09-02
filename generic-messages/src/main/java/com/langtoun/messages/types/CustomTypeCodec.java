@@ -2,7 +2,7 @@ package com.langtoun.messages.types;
 
 public enum CustomTypeCodec {
 
-  STD(""),
+  NONE(""),
   GQL("gql");
 
   private CustomTypeCodec(String customCodec) {

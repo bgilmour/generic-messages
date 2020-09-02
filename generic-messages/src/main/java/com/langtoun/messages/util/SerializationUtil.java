@@ -86,7 +86,7 @@ public final class SerializationUtil {
    */
   public static boolean usesCustomTypeEncoding(final CustomTypeEncoding typeEncoding) {
     return !typeEncoding.prefix().isEmpty() || !typeEncoding.suffix().isEmpty() || !typeEncoding.keyValSep().isEmpty()
-        || typeEncoding.codec() != CustomTypeCodec.STD;
+        || typeEncoding.codec() != CustomTypeCodec.NONE;
   }
 
   /**
