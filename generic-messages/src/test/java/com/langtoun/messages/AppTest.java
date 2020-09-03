@@ -152,9 +152,6 @@ public class AppTest extends TestCase {
           (stop - start) / 1000000L, iters, failures, dataLen);
     });
     System.out.println("---- TIMING STOP (SERIALIZATION - REGULAR) ----");
-  }
-
-  public void testCustomSerializationTimings() {
     System.out.println("---- TIMING START (SERIALIZATION - CUSTOM) ----");
     IntStream.range(0, 3).forEach(loop -> {
       long dataLen = 0;
