@@ -1,6 +1,7 @@
 package com.langtoun.messages;
 
 import java.io.IOException;
+import java.util.stream.IntStream;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +11,7 @@ import com.langtoun.messages.types.gen.cars.CarFeature;
 import com.langtoun.messages.types.gen.cars.ComplexCar;
 import com.langtoun.messages.types.gen.cars.ComplexCarWithFeatures;
 import com.langtoun.messages.types.gen.cars.CustomComplexCar;
+import com.langtoun.messages.types.gen.cars.CustomComplexCarWithFeatures;
 import com.langtoun.messages.types.gen.cars.CustomSimpleCar;
 import com.langtoun.messages.types.gen.cars.SimpleCar;
 
@@ -103,9 +105,13 @@ public class AppTest extends TestCase {
     System.out.println("---- CUSTOM ENCODING ----");
     final AwsComplexType customCar1 = new CustomSimpleCar("Blue", "Mazda", null);
     final AwsComplexType customCar2 = new CustomComplexCar("Blue", "Mazda", false, new CarEngine(4, "petrol"));
+    final AwsComplexType customCar3 = new CustomComplexCarWithFeatures("Blue", "Mazda", true, new CarEngine(4, "petrol"));
+    ((CustomComplexCarWithFeatures) customCar3).addFeature(new CarFeature("19 inch alloys", null));
+    ((CustomComplexCarWithFeatures) customCar3).addFeature(new CarFeature("Bose sound system", 1200.0));
 
     System.out.println("encode: customCar1 -> " + customCar1);
     System.out.println("encode: customCar2 -> " + customCar2);
+    System.out.println("encode: customCar3 -> " + customCar3);
 
     System.out.println("---- CUSTOM DECODING ----");
     final String encodedCar1 = "\"<<<colour=\\\"Blue\\\"|type=\\\"Mazda\\\"|rightHandDrive=null>>>\"";
@@ -122,6 +128,51 @@ public class AppTest extends TestCase {
     }
 
     System.out.println("---- PLAYGROUND STOP ----");
+  }
+
+  public void testRegularSerializationTimings() {
+    System.out.println("---- TIMING START (SERIALIZATION - REGULAR) ----");
+    IntStream.range(0, 3).forEach(loop -> {
+      long dataLen = 0;
+      final int iters = 1000000;
+      int failures = 0;
+      final long start = System.nanoTime();
+      for (int i = 0; i < iters; i++) {
+        final AwsComplexType car = new ComplexCarWithFeatures("Blue", "Mazda", true, new CarEngine(4, "petrol"));
+        ((ComplexCarWithFeatures) car).addFeature(new CarFeature("19 inch alloys", (double) i));
+        ((ComplexCarWithFeatures) car).addFeature(new CarFeature("Bose sound system", (double) i));
+        try {
+          dataLen += jsonMapper.writeValueAsString(car).length();
+        } catch (JsonProcessingException e) {
+          failures++;
+        }
+      }
+      final long stop = System.nanoTime();
+      System.out.printf("loop %d: elapsed = %,d ms, iterations = %,d, failures = %,d, length = %,d bytes\n", loop + 1,
+          (stop - start) / 1000000L, iters, failures, dataLen);
+    });
+    System.out.println("---- TIMING STOP (SERIALIZATION - REGULAR) ----");
+    System.out.println("---- TIMING START (SERIALIZATION - CUSTOM) ----");
+    IntStream.range(0, 3).forEach(loop -> {
+      long dataLen = 0;
+      final int iters = 1000000;
+      int failures = 0;
+      final long start = System.nanoTime();
+      for (int i = 0; i < iters; i++) {
+        final AwsComplexType car = new CustomComplexCarWithFeatures("Blue", "Mazda", true, new CarEngine(4, "petrol"));
+        ((CustomComplexCarWithFeatures) car).addFeature(new CarFeature("19 inch alloys", (double) i));
+        ((CustomComplexCarWithFeatures) car).addFeature(new CarFeature("Bose sound system", (double) i));
+        try {
+          dataLen += jsonMapper.writeValueAsString(car).length();
+        } catch (JsonProcessingException e) {
+          failures++;
+        }
+      }
+      final long stop = System.nanoTime();
+      System.out.printf("loop %d: elapsed = %,d ms, iterations = %,d, failures = %,d, length = %,d bytes\n", loop + 1,
+          (stop - start) / 1000000L, iters, failures, dataLen);
+    });
+    System.out.println("---- TIMING STOP (SERIALIZATION - CUSTOM) ----");
   }
 
   public void testSerializerWithSimpleCar() throws IOException {

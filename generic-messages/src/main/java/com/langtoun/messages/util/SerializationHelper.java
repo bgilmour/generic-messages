@@ -24,11 +24,15 @@ import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
 import com.langtoun.messages.types.CustomTypeCodec;
 
-public final class SerializationUtil {
+public final class SerializationHelper {
 
   private static final Map<Class<?>, JAXBContext> jaxbContexts = new HashMap<>();
 
-  private SerializationUtil() {
+  private static final Map<Class<?>, Map<String, Pair<Field, AwsFieldProperty>>> fieldsWithPropertyAnnotationMap = new HashMap<>();
+
+  private static final Map<Class<?>, Boolean> usesCustomTypeEncodingMap = new HashMap<>();
+
+  private SerializationHelper() {
     // static utility methods
   }
 
@@ -78,16 +82,29 @@ public final class SerializationUtil {
 
   /**
    * Given a {@link CustomTypeEncoding} annotation, determine whether or not the
-   * type has been configured to use a custom type encoding.
+   * type has been configured to use a custom type encoding. The result is
+   * computed only if it hasn't already been cached.
    * 
-   * @param typeEncoding the type encoding annotation
+   * @param clazz the class for which the result is to be computed
    * @return {@code true} if the annotation indicates a custom type encoding,
    *         otherwise {@code false}
    */
-  public static boolean usesCustomTypeEncoding(final CustomTypeEncoding typeEncoding) {
-    return !typeEncoding.prefix().isEmpty() || !typeEncoding.suffix().isEmpty() || !typeEncoding.keyValSep().isEmpty()
-        || typeEncoding.codec() != CustomTypeCodec.STD;
+  public static boolean usesCustomTypeEncoding(final Class<?> clazz) {
+    return usesCustomTypeEncodingMap.computeIfAbsent(clazz, c -> {
+      final AwsTypeDefinition typeDefinition = c.getAnnotation(AwsTypeDefinition.class);
+      if (typeDefinition != null) {
+        final CustomTypeEncoding typeEncoding = typeDefinition.encoding();
+        return !typeEncoding.prefix().isEmpty() || !typeEncoding.suffix().isEmpty() || !typeEncoding.keyValSep().isEmpty()
+            || typeEncoding.codec() != CustomTypeCodec.STD;
+      }
+      return false;
+    });
   }
+
+//  public static boolean usesCustomTypeEncodingOriginal(final CustomTypeEncoding typeEncoding) {
+//    return !typeEncoding.prefix().isEmpty() || !typeEncoding.suffix().isEmpty() || !typeEncoding.keyValSep().isEmpty()
+//        || typeEncoding.codec() != CustomTypeCodec.STD;
+//  }
 
   /**
    * Retrieve a map of {@link Field} objects and {@link TypeProperties} from the
@@ -180,15 +197,17 @@ public final class SerializationUtil {
   /**
    * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
    * {@link AwsFieldProperty} annotations for annotated fields in the class
-   * hierarchy of the supplied {@code Class}.
+   * hierarchy of the supplied {@code Class}. The result is computed only if it
+   * hasn't already been cached.
    *
    * @param clazz the class whose class hierarchy's annotated fields are to be
-   *              retrieved
+   *              computed
    * @return a map of pairs of {@link Field} objects and {@link AwsFieldProperty}
    *         annotations
    */
-  public static Map<String, Pair<Field, AwsFieldProperty>> getHierarchyFieldsWithTypeProperty(final Class<?> clazz) {
-    return getDeclaredFieldsWithAnnotation(getClassHierarchy(clazz).stream().flatMap(c -> Stream.of(c.getDeclaredFields())));
+  public static Map<String, Pair<Field, AwsFieldProperty>> computeFieldProperties(final Class<?> clazz) {
+    return fieldsWithPropertyAnnotationMap.computeIfAbsent(clazz,
+        c1 -> getDeclaredFieldsWithAnnotation(getClassHierarchy(c1).stream().flatMap(c2 -> Stream.of(c2.getDeclaredFields()))));
   }
 
   private static Map<String, Pair<Field, AwsFieldProperty>> getDeclaredFieldsWithAnnotation(final Stream<Field> stream) {
@@ -271,13 +290,17 @@ public final class SerializationUtil {
     }
   }
 
-  public static Object coerceFromString(final String encodedValue, final Class<?> clazz) {
+  public static Object coerceValueFromString(final String encodedValue, final Class<?> clazz) {
     if (String.class.isAssignableFrom(clazz)) {
       return encodedValue;
+    } else if (Long.class.isAssignableFrom(clazz)) {
+      return Long.parseLong(encodedValue);
     } else if (Integer.class.isAssignableFrom(clazz)) {
       return Integer.parseInt(encodedValue);
     } else if (Double.class.isAssignableFrom(clazz)) {
       return Double.parseDouble(encodedValue);
+    } else if (Float.class.isAssignableFrom(clazz)) {
+      return Float.parseFloat(encodedValue);
     } else if (Boolean.class.isAssignableFrom(clazz)) {
       return Boolean.parseBoolean(encodedValue);
     } else {

@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.langtoun.messages.annotations.AwsFieldProperty;
 import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.types.AwsComplexType;
-import com.langtoun.messages.util.SerializationUtil;
+import com.langtoun.messages.util.SerializationHelper;
 
 /**
  * JSON serializer for types that extend the {@link AwsComplexType} base class.
@@ -32,9 +32,9 @@ public class AwsComplexTypeJsonSerializer extends JsonSerializer<AwsComplexType>
     /*
      * check that the type is annotated with TypeDefinition
      */
-    final AwsTypeDefinition typeDefinition = SerializationUtil.getTypeDefinition(value);
+    final AwsTypeDefinition typeDefinition = SerializationHelper.getTypeDefinition(value);
     if (typeDefinition != null) {
-      if (!SerializationUtil.usesCustomTypeEncoding(typeDefinition.encoding())) {
+      if (!SerializationHelper.usesCustomTypeEncoding(value.getClass())) {
         serializeComplexType(value, typeDefinition, gen);
       } else {
         throw new IllegalArgumentException(
@@ -57,9 +57,9 @@ public class AwsComplexTypeJsonSerializer extends JsonSerializer<AwsComplexType>
       /*
        * retrieve the fields annotated with TypeProperty and compute the field order
        */
-      final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationUtil
-          .getHierarchyFieldsWithTypeProperty(value.getClass());
-      final String[] fieldOrder = SerializationUtil.computeFieldOrder(typeDefinition, fieldProperties);
+      final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationHelper
+          .computeFieldProperties(value.getClass());
+      final String[] fieldOrder = SerializationHelper.computeFieldOrder(typeDefinition, fieldProperties);
       /*
        * iterate over the fields to be serialized
        */
@@ -69,9 +69,9 @@ public class AwsComplexTypeJsonSerializer extends JsonSerializer<AwsComplexType>
           final Field field = fieldProperty.getKey();
           final AwsFieldProperty property = fieldProperty.getValue();
           if (List.class.isAssignableFrom(field.getType())) {
-            writeArrayValues(fieldName, SerializationUtil.getListValue(value, field), property.required(), gen);
+            writeArrayValues(fieldName, SerializationHelper.getListValue(value, field), property.required(), gen);
           } else {
-            final Object fieldValue = SerializationUtil.getValue(value, field);
+            final Object fieldValue = SerializationHelper.getValue(value, field);
             if (fieldValue instanceof AwsComplexType) {
               gen.writeFieldName(fieldName);
               serialize((AwsComplexType) fieldValue, gen);
@@ -143,10 +143,14 @@ public class AwsComplexTypeJsonSerializer extends JsonSerializer<AwsComplexType>
       serialize((AwsComplexType) value, gen);
     } else if (value instanceof String) {
       gen.writeString((String) value);
+    } else if (value instanceof Long) {
+      gen.writeNumber((Long) value);
     } else if (value instanceof Integer) {
       gen.writeNumber((Integer) value);
     } else if (value instanceof Double) {
       gen.writeNumber((Double) value);
+    } else if (value instanceof Float) {
+      gen.writeNumber((Float) value);
     } else if (value instanceof Boolean) {
       gen.writeBoolean((Boolean) value);
     } else {
