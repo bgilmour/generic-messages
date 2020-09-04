@@ -27,11 +27,12 @@ public @interface AwsFieldProperty {
   boolean required() default false;
 
   /**
-   * Determines whether the field is to be treated as sensitive data.
+   * The original name of the property from the API specification. Only required
+   * for custom field encodings.
    * 
-   * @return {@code true} if the field is sensitive, otherwise {@code false}
+   * @return the original name of the property
    */
-  boolean isSensitive() default false;
+  String originalName() default "";
 
   /**
    * If the field is a member of a type that is subject to custom encoding then

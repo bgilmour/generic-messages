@@ -28,9 +28,9 @@ public final class SerializationHelper {
 
   private static final Map<Class<?>, JAXBContext> jaxbContexts = new HashMap<>();
 
-  private static final Map<Class<?>, Map<String, Pair<Field, AwsFieldProperty>>> fieldsWithPropertyAnnotationMap = new HashMap<>();
-
   private static final Map<Class<?>, Boolean> usesCustomTypeEncodingMap = new HashMap<>();
+
+  private static final Map<Class<?>, Map<String, Pair<Field, AwsFieldProperty>>> fieldsWithPropertyAnnotationMap = new HashMap<>();
 
   private SerializationHelper() {
     // static utility methods
@@ -190,7 +190,8 @@ public final class SerializationHelper {
   }
 
   /**
-   * Retrieve a {@code Map} of field names and pairs of {@link Field} objects and
+   * Retrieve a {@code Map} of field names (original names from the API
+   * specification) and pairs of {@link Field} objects and
    * {@link AwsFieldProperty} annotations for annotated fields in the class
    * hierarchy of the supplied {@code Class}. The result is computed only if it
    * hasn't already been cached.
@@ -207,7 +208,8 @@ public final class SerializationHelper {
 
   private static Map<String, Pair<Field, AwsFieldProperty>> getDeclaredFieldsWithAnnotation(final Stream<Field> stream) {
     return stream.filter(f -> f.isAnnotationPresent(AwsFieldProperty.class))
-        .collect(Collectors.toMap(f -> f.getName(), f -> Pair.of(f, f.getAnnotation(AwsFieldProperty.class))));
+        .map(f -> Pair.of(f, f.getAnnotation(AwsFieldProperty.class)))
+        .collect(Collectors.toMap(p -> p.getValue().originalName(), Function.identity()));
   }
 
   /**

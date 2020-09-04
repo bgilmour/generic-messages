@@ -96,7 +96,8 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
             e);
       }
     } else {
-      throw new IllegalArgumentException(String.format("type[%s] must be annotated with @TypeDefinition", javaType.getTypeName()));
+      throw new IllegalArgumentException(
+          String.format("type[%s] must be annotated with @AwsTypeDefinition", javaType.getTypeName()));
     }
   }
 
