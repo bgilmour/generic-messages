@@ -56,7 +56,6 @@ public class AwsCustomEncodingSerializer extends JsonSerializer<Object> {
        */
       final AwsTypeDefinition typeDefinition = SerializationHelper.getTypeDefinition(_object);
       if (typeDefinition != null) {
-//        if (SerializationUtil.usesCustomTypeEncodingOriginal(typeDefinition.encoding())) {
         if (SerializationHelper.usesCustomTypeEncoding(_object.getClass())) {
           gen.writeString(serializeCustomEncoding((AwsComplexType) _object, typeDefinition));
         } else {
@@ -77,7 +76,12 @@ public class AwsCustomEncodingSerializer extends JsonSerializer<Object> {
      */
     final AwsTypeDefinition typeDefinition = SerializationHelper.getTypeDefinition(value);
     if (typeDefinition != null) {
-      return serializeCustomEncoding(value, SerializationHelper.getTypeDefinition(value));
+      try {
+        return objectMapper.writeValueAsString(serializeCustomEncoding(value, SerializationHelper.getTypeDefinition(value)));
+      } catch (JsonProcessingException e) {
+        throw new IllegalArgumentException(
+            String.format("unable to serialize an instance of type[%s]", value.getClass().getTypeName()), e);
+      }
     } else {
       throw new IllegalArgumentException(
           String.format("type[%s] must be annotated with @AwsTypeDefinition", value.getClass().getTypeName()));

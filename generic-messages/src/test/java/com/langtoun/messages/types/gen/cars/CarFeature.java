@@ -23,10 +23,10 @@ import com.langtoun.messages.types.AwsComplexType;
 // @Format-On
 public class CarFeature extends AwsComplexType {
 
-  @AwsFieldProperty(required = true)
+  @AwsFieldProperty(required = true, originalName = "name")
   private String name;
 
-  @AwsFieldProperty
+  @AwsFieldProperty(originalName = "price")
   private Double price;
 
   public CarFeature() {

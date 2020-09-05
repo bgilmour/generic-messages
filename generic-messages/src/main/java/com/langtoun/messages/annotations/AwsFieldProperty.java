@@ -32,7 +32,7 @@ public @interface AwsFieldProperty {
    * 
    * @return the original name of the property
    */
-  String originalName() default "";
+  String originalName();
 
   /**
    * If the field is a member of a type that is subject to custom encoding then

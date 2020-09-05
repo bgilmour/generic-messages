@@ -176,8 +176,8 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
         }
       } else {
         throw new IllegalStateException(
-            String.format("failed to retrieve field property info during deserialization of type[%s], field[%s]",
-                value.getClass().getTypeName(), fieldName));
+            String.format("%s%s: failed to retrieve field property info during deserialization of type[%s], field[%s]", nodePath,
+                fieldName, value.getClass().getTypeName(), fieldName));
       }
     }
     return value;
@@ -238,6 +238,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
   private static AwsComplexType deserializeCustomEncoding(final AwsComplexType value, final String encoded,
       final AwsTypeDefinition typeDefinition) {
     String remaining = encoded;
+    // TODO: is this required - it's not in the original generated code
     if (remaining.startsWith("\"") && remaining.endsWith("\"")) {
       remaining = remaining.substring(1, remaining.length() - 1);
     }

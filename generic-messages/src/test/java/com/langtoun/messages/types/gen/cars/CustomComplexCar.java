@@ -29,7 +29,7 @@ import com.langtoun.messages.types.FieldEncodingType;
 // @Format-On
 public class CustomComplexCar extends CustomSimpleCar {
 
-  @AwsFieldProperty(required = true, encoding = FieldEncodingType.BASE64)
+  @AwsFieldProperty(required = true, originalName = "engine", encoding = FieldEncodingType.BASE64)
   private CarEngine engine;
 
   public CustomComplexCar() {
