@@ -143,7 +143,7 @@ public class AppTest extends TestCase {
     System.out.println("---- TIMING START (SERIALIZATION - REGULAR) ----");
     IntStream.range(0, 3).forEach(loop -> {
       long dataLen = 0;
-      final int iters = 100000;
+      final int iters = 1000000;
       int failures = 0;
       final long start = System.nanoTime();
       for (int i = 0; i < iters; i++) {
@@ -161,10 +161,13 @@ public class AppTest extends TestCase {
           (stop - start) / 1000000L, iters, failures, dataLen);
     });
     System.out.println("---- TIMING STOP (SERIALIZATION - REGULAR) ----");
+  }
+
+  public void testCustomSerializationTimings() {
     System.out.println("---- TIMING START (SERIALIZATION - CUSTOM) ----");
     IntStream.range(0, 3).forEach(loop -> {
       long dataLen = 0;
-      final int iters = 100000;
+      final int iters = 1000000;
       int failures = 0;
       final long start = System.nanoTime();
       for (int i = 0; i < iters; i++) {
@@ -182,6 +185,30 @@ public class AppTest extends TestCase {
           (stop - start) / 1000000L, iters, failures, dataLen);
     });
     System.out.println("---- TIMING STOP (SERIALIZATION - CUSTOM) ----");
+  }
+
+  public void testRegularDeserializationTimings() {
+    System.out.println("---- TIMING START (DESERIALIZATION - REGULAR) ----");
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
+    IntStream.range(0, 3).forEach(loop -> {
+      long dataLen = 0;
+      final int iters = 1000000;
+      int failures = 0;
+      final long start = System.nanoTime();
+      for (int i = 0; i < iters; i++) {
+        try {
+          @SuppressWarnings("unused")
+          final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCarWithFeatures.class);
+          dataLen += jsonCar.length();
+        } catch (JsonProcessingException e) {
+          failures++;
+        }
+      }
+      final long stop = System.nanoTime();
+      System.out.printf("loop %d: elapsed = %,d ms, iterations = %,d, failures = %,d, length = %,d bytes\n", loop + 1,
+          (stop - start) / 1000000L, iters, failures, dataLen);
+    });
+    System.out.println("---- TIMING STOP (DESERIALIZATION - REGULAR) ----");
   }
 
   public void testSerializerWithSimpleCar() throws IOException {

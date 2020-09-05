@@ -77,7 +77,6 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
   @Override
   public AwsComplexType deserialize(final JsonParser parser, final DeserializationContext context)
       throws IOException, JsonProcessingException {
-    System.out.println("deserialize : " + javaType.getTypeName());
     /*
      * check that the type is annotated with TypeDefinition
      */
@@ -89,7 +88,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
         if (SerializationHelper.usesCustomTypeEncoding(javaType.getRawClass())) {
           return deserializeCustomEncoding(value, rootNode, typeDefinition);
         }
-        return deserializeComplexType(value, rootNode, typeDefinition, "/", "  ");
+        return deserializeComplexType(value, rootNode, typeDefinition, "/");
       } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
           | SecurityException e) {
         throw new IllegalArgumentException(String.format("unable to deserialize an instance of type[%s]", javaType.getTypeName()),
@@ -131,7 +130,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
   }
 
   private static AwsComplexType deserializeComplexType(final AwsComplexType value, final JsonNode rootNode,
-      final AwsTypeDefinition typeDefinition, final String nodePath, final String indent) {
+      final AwsTypeDefinition typeDefinition, final String nodePath) {
     /*
      * retrieve the fields annotated with TypeProperty
      */
@@ -160,9 +159,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
              * the field indicates that it is a List type so we need to find an ArrayNode
              */
             if (jsonNode instanceof ArrayNode) {
-              System.out.println(indent + fieldName + "[]");
-              SerializationHelper.setValue(value, readArrayValues((ArrayNode) jsonNode, field, property, nodePath, indent + "  "),
-                  field);
+              SerializationHelper.setValue(value, readArrayValues((ArrayNode) jsonNode, field, property, nodePath), field);
             } else {
               throw new IllegalStateException(String.format("%s%s: failed to process list property for type[%s], field[%s]",
                   nodePath, fieldName, value.getClass().getTypeName(), fieldName));
@@ -171,7 +168,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
             /*
              * deserialize the scalar value (may be simple or complex)
              */
-            SerializationHelper.setValue(value, readScalarValue(jsonNode, fieldName, field, nodePath, indent), field);
+            SerializationHelper.setValue(value, readScalarValue(jsonNode, fieldName, field, nodePath), field);
           }
         }
       } else {
@@ -184,7 +181,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
   }
 
   private static List<Object> readArrayValues(final ArrayNode arrayNode, final Field field, final AwsFieldProperty property,
-      final String nodePath, final String indent) {
+      final String nodePath) {
     final String fieldName = field.getName();
     final Iterator<JsonNode> iter = arrayNode.elements();
     if (iter.hasNext()) {
@@ -193,7 +190,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
       while (iter.hasNext()) {
         final JsonNode node = iter.next();
         final String itemName = fieldName + "[" + i + "]";
-        items.add(readScalarValue(node, itemName, field, nodePath, indent));
+        items.add(readScalarValue(node, itemName, field, nodePath));
         i++;
       }
       return items;
@@ -201,13 +198,10 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
     return null;
   }
 
-  private static Object readScalarValue(final JsonNode node, final String fieldName, Field field, final String nodePath,
-      final String indent) {
+  private static Object readScalarValue(final JsonNode node, final String fieldName, Field field, final String nodePath) {
     if (node instanceof ObjectNode) {
-      System.out.println(indent + fieldName + "{}");
-      return readComplexValue((ObjectNode) node, fieldName, field, nodePath, indent);
+      return readComplexValue((ObjectNode) node, fieldName, field, nodePath);
     } else if (node instanceof ValueNode) {
-      System.out.println(indent + fieldName);
       final ValueNode valueNode = (ValueNode) node;
       return SerializationHelper.coerceFromNode(valueNode, fieldName);
     } else {
@@ -216,14 +210,13 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
     }
   }
 
-  private static Object readComplexValue(final ObjectNode objectNode, final String fieldName, Field field, final String nodePath,
-      final String indent) {
+  private static Object readComplexValue(final ObjectNode objectNode, final String fieldName, Field field, final String nodePath) {
     final Class<?> fieldType = SerializationHelper.getValueType(field);
     if (AwsComplexType.class.isAssignableFrom(fieldType)) {
       try {
         final AwsComplexType value = (AwsComplexType) fieldType.getConstructor().newInstance();
         return deserializeComplexType(value, objectNode, SerializationHelper.getTypeDefinition(fieldType),
-            nodePath + fieldName + "/", indent + "  ");
+            nodePath + fieldName + "/");
       } catch (IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException
           | SecurityException e) {
         throw new IllegalStateException(
