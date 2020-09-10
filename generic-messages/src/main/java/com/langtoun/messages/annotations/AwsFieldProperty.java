@@ -20,19 +20,26 @@ import com.langtoun.messages.types.FieldEncodingType;
 public @interface AwsFieldProperty {
 
   /**
-   * Determines whether the field is required or optional.
-   * 
-   * @return {@code true} if the field is required, otherwise {@code false}
-   */
-  boolean required() default false;
-
-  /**
    * The original name of the property from the API specification. Only required
    * for custom field encodings.
    * 
    * @return the original name of the property
    */
   String originalName();
+
+  /**
+   * The zero-offset index of the field within its container type.
+   * 
+   * @return the index of the field
+   */
+  int index();
+
+  /**
+   * Determines whether the field is required or optional.
+   * 
+   * @return {@code true} if the field is required, otherwise {@code false}
+   */
+  boolean required() default false;
 
   /**
    * If the field is a member of a type that is subject to custom encoding then

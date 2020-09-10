@@ -23,7 +23,7 @@ import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 // @Format-On
 public class ComplexCar extends SimpleCar {
 
-  @AwsFieldProperty(required = true, originalName = "engine")
+  @AwsFieldProperty(originalName = "engine", index = 3, required = true)
   private CarEngine engine;
 
   public ComplexCar() {

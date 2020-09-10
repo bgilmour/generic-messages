@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.node.ValueNode;
 import com.langtoun.messages.annotations.AwsFieldProperty;
 import com.langtoun.messages.annotations.AwsTypeDefinition;
 import com.langtoun.messages.annotations.CustomTypeEncoding;
+import com.langtoun.messages.types.AwsComplexType;
 import com.langtoun.messages.types.CustomTypeCodec;
 
 public final class SerializationHelper {
@@ -305,32 +306,51 @@ public final class SerializationHelper {
     }
   }
 
-  public static Object getValue(final Object object, final Field field) {
+  /**
+   * 
+   * @param instance
+   * @param field
+   * @return
+   */
+  public static Object getValue(final AwsComplexType instance, final Field field) {
     try {
       field.setAccessible(true);
-      return field.get(object);
+      return field.get(instance);
     } catch (IllegalArgumentException | IllegalAccessException e) {
       throw new IllegalArgumentException(
-          String.format("failed to retrieve value from type[%s], field[%s]", object.getClass().getTypeName(), field.getName()), e);
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  public static List<Object> getListValue(final Object object, final Field field) {
-    try {
-      field.setAccessible(true);
-      return (List<Object>) field.get(object);
-    } catch (IllegalArgumentException | IllegalAccessException e) {
-      throw new IllegalArgumentException(
-          String.format("failed to retrieve list value from type[%s], field[%s]", object.getClass().getTypeName(), field.getName()),
+          String.format("failed to retrieve value from type[%s], field[%s]", instance.getClass().getTypeName(), field.getName()),
           e);
     }
   }
 
-  public static void setValue(final Object instance, final Object value, final Field field) {
+  /**
+   * 
+   * @param instance
+   * @param field
+   * @return
+   */
+  @SuppressWarnings("unchecked")
+  public static List<Object> getListValue(final AwsComplexType instance, final Field field) {
+    try {
+      field.setAccessible(true);
+      return (List<Object>) field.get(instance);
+    } catch (IllegalArgumentException | IllegalAccessException e) {
+      throw new IllegalArgumentException(String.format("failed to retrieve list value from type[%s], field[%s]",
+          instance.getClass().getTypeName(), field.getName()), e);
+    }
+  }
+
+  /**
+   * 
+   * @param instance
+   * @param value
+   * @param field
+   */
+  public static void setValue(final AwsComplexType instance, final Object value, final Field field, final int index) {
     try {
       field.setAccessible(true);
       field.set(instance, value);
+      instance.setBitMaskField(index);
     } catch (IllegalArgumentException | IllegalAccessException e) {
       throw new IllegalArgumentException(
           String.format("failed to set value on type[%s], field[%s]", instance.getClass().getTypeName(), field.getName()), e);

@@ -60,7 +60,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
   private JavaType javaType;
 
   public AwsComplexTypeJsonDeserializer() {
-
+    // do nothing
   }
 
   public AwsComplexTypeJsonDeserializer(final JavaType javaType) {
@@ -159,7 +159,8 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
              * the field indicates that it is a List type so we need to find an ArrayNode
              */
             if (jsonNode instanceof ArrayNode) {
-              SerializationHelper.setValue(value, readArrayValues((ArrayNode) jsonNode, field, property, nodePath), field);
+              SerializationHelper.setValue(value, readArrayValues((ArrayNode) jsonNode, field, property, nodePath), field,
+                  property.index());
             } else {
               throw new IllegalStateException(String.format("%s%s: failed to process list property for type[%s], field[%s]",
                   nodePath, fieldName, value.getClass().getTypeName(), fieldName));
@@ -168,7 +169,7 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
             /*
              * deserialize the scalar value (may be simple or complex)
              */
-            SerializationHelper.setValue(value, readScalarValue(jsonNode, fieldName, field, nodePath), field);
+            SerializationHelper.setValue(value, readScalarValue(jsonNode, fieldName, field, nodePath), field, property.index());
           }
         }
       } else {
@@ -253,13 +254,12 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
       });
     }
     /*
-     * decode each field in the order specified in the computed field order
+     * decode each field that is present
      */
     final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationHelper.computeFieldProperties(value.getClass());
     final String[] fieldOrder = SerializationHelper.computeFieldOrder(typeDefinition, fieldProperties);
     /*
-     * split the remaining encoded message into encoded fields (the number of fields
-     * must match the number of entries in the computed field order)
+     * split the remaining encoded message into encoded fields
      */
     final String[] encodedFields = remaining.split(SerializationHelper.createSeparatorPattern(typeEncoding.fieldSep()));
     /*
@@ -287,12 +287,17 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
     /*
      * iterate over the fields that are to be decoded
      */
-    String encodedField = null;
-    for (final String fieldName : fieldOrder) {
+    for (Entry<String, String> entry : encodedFieldMap.entrySet()) {
       /*
        * skip over any fields that the preprocessor has determined are to be ignored
        */
 //      if (!ignoredField) { // due to preprocessor directives
+
+      /*
+       * retrieve the encoded field and take action if it's a missing required field
+       */
+      final String fieldName = entry.getKey();
+      String encodedField = entry.getValue();
 
       final Pair<Field, AwsFieldProperty> fieldProperty = fieldProperties.get(fieldName);
       if (fieldProperty != null) {
@@ -301,15 +306,12 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
         final Class<?> fieldType = field.getType();
         final boolean repeated = List.class.isAssignableFrom(fieldType);
 
+        if (encodedField == null && property.required()) {
+          throw new IllegalArgumentException(String.format("failed to find an entry for required field[%s] in type[%s]", fieldName,
+              value.getClass().getTypeName()));
+        }
+
         try {
-          /*
-           * retrieve the encoded field and take action if it's a missing required field
-           */
-          encodedField = encodedFieldMap.get(fieldName);
-          if (encodedField == null && property.required()) {
-            throw new IllegalArgumentException(String.format("failed to find an entry for required field[%s] in type[%s]",
-                fieldName, value.getClass().getTypeName()));
-          }
           if (encodedField != null) {
             final FieldEncodingType fieldEncoding = property.encoding();
             if (fieldEncoding == FieldEncodingType.XML_URLENCODED || fieldEncoding == FieldEncodingType.JSON_URLENCODED) {
@@ -317,45 +319,55 @@ public class AwsComplexTypeJsonDeserializer extends JsonDeserializer<AwsComplexT
             } else {
               encodedField = encodedField.trim();
             }
-            if (encodedField.startsWith("\"") && encodedField.endsWith("\"")) {
-              encodedField = encodedField.substring(1, encodedField.length() - 1);
-            }
+            // TODO: check the position of this check
+//            if (encodedField.startsWith("\"") && encodedField.endsWith("\"")) {
+//              encodedField = encodedField.substring(1, encodedField.length() - 1);
+//            }
             if (fieldEncoding != FieldEncodingType.UNKNOWN) {
               if (fieldEncoding == FieldEncodingType.XML || fieldEncoding == FieldEncodingType.XML_URLENCODED) {
+                // TODO: check if this is the right place to strip double quotes
+                if (encodedField.startsWith("\"") && encodedField.endsWith("\"")) {
+                  encodedField = encodedField.substring(1, encodedField.length() - 1);
+                }
                 final JAXBContext jaxbContext = SerializationHelper
                     .getJaxbContextFor((Class<?>) (repeated ? List.class : fieldType));
                 final InputStream xmlStream = new java.io.ByteArrayInputStream(encodedField.getBytes());
                 final Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-                SerializationHelper.setValue(value, unmarshaller.unmarshal(xmlStream), field);
-                // SerializationUtil.setValue(value,
+                SerializationHelper.setValue(value, unmarshaller.unmarshal(xmlStream), field, property.index());
+                // SerializationHelper.setValue(value,
                 // com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream,
-                // jaxbContext), field);
+                // jaxbContext), field, property.index());
               } else if (fieldEncoding == FieldEncodingType.JSON || fieldEncoding == FieldEncodingType.JSON_URLENCODED) {
                 SerializationHelper.setValue(value,
-                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field);
+                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field, property.index());
               } else if (fieldEncoding == FieldEncodingType.BASE64) {
+                // TODO: check if this is the right place to strip double quotes
+                if (encodedField.startsWith("\"") && encodedField.endsWith("\"")) {
+                  encodedField = encodedField.substring(1, encodedField.length() - 1);
+                }
                 final Base64 base64Url = new Base64(true);
                 encodedField = new String(base64Url.decode(encodedField));
                 SerializationHelper.setValue(value,
-                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field);
+                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field, property.index());
               }
             } else {
               // Try to dynamically infer the encoding from the contents
               if (encodedField.startsWith("{") || encodedField.startsWith("[")) {
                 SerializationHelper.setValue(value,
-                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field);
+                    objectMapper.readValue(encodedField, (Class<?>) (repeated ? List.class : fieldType)), field, property.index());
               } else if (encodedField.startsWith("<")) {
                 javax.xml.bind.JAXBContext jaxbContext = SerializationHelper
                     .getJaxbContextFor((Class<?>) (repeated ? List.class : fieldType));
                 java.io.InputStream xmlStream = new java.io.ByteArrayInputStream(encodedField.getBytes());
                 final Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-                SerializationHelper.setValue(value, unmarshaller.unmarshal(xmlStream), field);
-                // SerializationUtil.setValue(value,
+                SerializationHelper.setValue(value, unmarshaller.unmarshal(xmlStream), field, property.index());
+                // SerializationHelper.setValue(value,
                 // com.avaloq.front.common.util.SafeXMLUtils.safeUnmarshal(xmlStream,
-                // jaxbContext), field);
+                // jaxbContext), field, property.index());
               } else {
                 if (!AwsComplexType.class.isAssignableFrom(fieldType)) {
-                  SerializationHelper.setValue(value, SerializationHelper.coerceValueFromString(encodedField, fieldType), field);
+                  SerializationHelper.setValue(value, SerializationHelper.coerceValueFromString(encodedField, fieldType), field,
+                      property.index());
                 } else {
                   throw new IllegalArgumentException(
                       String.format("unable to deserialize an instance of type[%s] from encoded field[%s]",

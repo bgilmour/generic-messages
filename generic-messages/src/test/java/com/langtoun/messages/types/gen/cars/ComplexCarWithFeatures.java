@@ -26,7 +26,7 @@ import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 // @Format-On
 public class ComplexCarWithFeatures extends ComplexCar {
 
-  @AwsFieldProperty(required = true, originalName = "features")
+  @AwsFieldProperty(originalName = "features", index = 4, required = true)
   private final List<CarFeature> features = new ArrayList<>();
 
   public ComplexCarWithFeatures() {

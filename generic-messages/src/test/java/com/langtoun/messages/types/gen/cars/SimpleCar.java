@@ -24,13 +24,13 @@ import com.langtoun.messages.types.AwsComplexType;
 // @Format-On
 public class SimpleCar extends AwsComplexType {
 
-  @AwsFieldProperty(required = true, originalName = "colour")
+  @AwsFieldProperty(originalName = "colour", index = 0, required = true)
   private String colour;
 
-  @AwsFieldProperty(required = true, originalName = "type")
+  @AwsFieldProperty(originalName = "type", index = 1, required = true)
   private String type;
 
-  @AwsFieldProperty(originalName = "rightHandDrive")
+  @AwsFieldProperty(originalName = "rightHandDrive", index = 2)
   private Boolean rightHandDrive;
 
   public SimpleCar() {
