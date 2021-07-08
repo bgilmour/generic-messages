@@ -56,17 +56,16 @@ public class AwsCustomEncodingSerializer extends JsonSerializer<Object> {
        */
       final AwsTypeDefinition typeDefinition = SerializationHelper.getTypeDefinition(_object);
       if (typeDefinition != null) {
-//        if (SerializationUtil.usesCustomTypeEncodingOriginal(typeDefinition.encoding())) {
         if (SerializationHelper.usesCustomTypeEncoding(_object.getClass())) {
           gen.writeString(serializeCustomEncoding((AwsComplexType) _object, typeDefinition));
         } else {
           throw new IllegalArgumentException(
-              String.format("the @TypeDefinition annotation must specify custom encoding parameters for type[%s]",
+              String.format("the @AwsTypeDefinition annotation must specify custom encoding parameters for type[%s]",
                   _object.getClass().getTypeName()));
         }
       } else {
         throw new IllegalArgumentException(
-            String.format("type[%s] must be annotated with @TypeDefinition", _object.getClass().getTypeName()));
+            String.format("type[%s] must be annotated with @AwsTypeDefinition", _object.getClass().getTypeName()));
       }
     }
   }
@@ -77,10 +76,15 @@ public class AwsCustomEncodingSerializer extends JsonSerializer<Object> {
      */
     final AwsTypeDefinition typeDefinition = SerializationHelper.getTypeDefinition(value);
     if (typeDefinition != null) {
-      return serializeCustomEncoding(value, SerializationHelper.getTypeDefinition(value));
+      try {
+        return objectMapper.writeValueAsString(serializeCustomEncoding(value, SerializationHelper.getTypeDefinition(value)));
+      } catch (JsonProcessingException e) {
+        throw new IllegalArgumentException(
+            String.format("unable to serialize an instance of type[%s]", value.getClass().getTypeName()), e);
+      }
     } else {
       throw new IllegalArgumentException(
-          String.format("type[%s] must be annotated with @TypeDefinition", value.getClass().getTypeName()));
+          String.format("type[%s] must be annotated with @AwsTypeDefinition", value.getClass().getTypeName()));
     }
   }
 
@@ -116,8 +120,7 @@ public class AwsCustomEncodingSerializer extends JsonSerializer<Object> {
     /*
      * encode each field in the order specified in the computed field order
      */
-    final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationHelper
-        .computeFieldProperties(value.getClass());
+    final Map<String, Pair<Field, AwsFieldProperty>> fieldProperties = SerializationHelper.computeFieldProperties(value.getClass());
     final String[] fieldOrder = SerializationHelper.computeFieldOrder(typeDefinition, fieldProperties);
     /*
      * iterate over the fields that are to be encoded

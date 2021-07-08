@@ -75,7 +75,6 @@ public class AppTest extends TestCase {
     final String jsonCar1 = "{\"colour\":\"Blue\",\"type\":\"Mazda\"}";
     final String jsonCar2 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
     final String jsonCar3 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
-    final String jsonCar4 = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"price\":1200.0}]}";
     final String jsonEngine = "{\"cylinders\":6,\"fuelType\":\"petrol\"}";
     final String jsonFeature = "{\"name\":\"Bose sound system\",\"price\":1200.0}";
 
@@ -95,18 +94,10 @@ public class AppTest extends TestCase {
       System.out.println("ERROR: " + e.getMessage());
     }
 
-    System.out.println("---- DESERIALIZATION (ERROR) ----");
-    try {
-      final AwsComplexType deserFailure = jsonMapper.readValue(jsonCar4, ComplexCarWithFeatures.class);
-      System.out.println("deserialize: jsonCar4(" + jsonCar4 + ") -> " + deserFailure);
-    } catch (final IllegalStateException e) {
-      System.out.println("ERROR: " + e.getMessage());
-    }
-
     System.out.println("---- DESERIALIZATION (DIRECT CALL) ----");
     try {
-      final AwsComplexType deserCar5 = AwsComplexTypeJsonDeserializer.deserialize(jsonCar3, ComplexCarWithFeatures.class);
-      System.out.println("direct: jsonCar3(" + jsonCar3 + ") -> " + deserCar5);
+      final AwsComplexType deserCar4 = AwsComplexTypeJsonDeserializer.deserialize(jsonCar3, ComplexCarWithFeatures.class);
+      System.out.println("direct: jsonCar3(" + jsonCar3 + ") -> " + deserCar4);
     } catch (final IllegalStateException e) {
       System.out.println("ERROR: " + e.getMessage());
     }
@@ -123,15 +114,26 @@ public class AppTest extends TestCase {
     System.out.println("encode: customCar3 -> " + customCar3);
 
     System.out.println("---- CUSTOM DECODING ----");
-    final String encodedCar1 = "\"<<<colour=\\\"Blue\\\"|type=\\\"Mazda\\\"|rightHandDrive=null>>>\"";
+    final String encodedCar1 = "\"<<<type=\\\"Mazda\\\"|colour=\\\"Blue\\\"|rightHandDrive=null>>>\"";
     final String encodedCar2 = "\"<<<colour=\\\"Blue\\\"|type=\\\"Mazda\\\"|rightHandDrive=false|engine=eyJjeWxpbmRlcnMiOjQsImZ1ZWxUeXBlIjoicGV0cm9sIn0>>>\"";
 
     try {
       final AwsComplexType decodedCar1 = jsonMapper.readValue(encodedCar1, CustomSimpleCar.class);
       final AwsComplexType decodedCar2 = jsonMapper.readValue(encodedCar2, CustomComplexCar.class);
 
-      System.out.println("decode: encodedCar1(" + encodedCar1 + ") -> " + decodedCar1);
-      System.out.println("decode: encodedCar2(" + encodedCar2 + ") -> " + decodedCar2);
+      final SimpleCar copyCar1 = new SimpleCar();
+      copyCar1.setColour(((CustomSimpleCar) decodedCar1).getColour());
+      copyCar1.setType(((CustomSimpleCar) decodedCar1).getType());
+      copyCar1.setRightHandDrive(((CustomSimpleCar) decodedCar1).getRightHandDrive());
+
+      final ComplexCar copyCar2 = new ComplexCar();
+      copyCar2.setColour(((CustomSimpleCar) decodedCar2).getColour());
+      copyCar2.setType(((CustomSimpleCar) decodedCar2).getType());
+      copyCar2.setRightHandDrive(((CustomSimpleCar) decodedCar2).getRightHandDrive());
+      copyCar2.setEngine(((CustomComplexCar) decodedCar2).getEngine());
+
+      System.out.println("decode: encodedCar1(" + encodedCar1 + ") -> " + decodedCar1 + " -> copyCar1(" + copyCar1 + ")");
+      System.out.println("decode: encodedCar2(" + encodedCar2 + ") -> " + decodedCar2 + " -> copyCar2(" + copyCar2 + ")");
     } catch (final Exception e) {
       System.out.println("ERROR: " + e.getMessage());
     }
@@ -161,6 +163,9 @@ public class AppTest extends TestCase {
           (stop - start) / 1000000L, iters, failures, dataLen);
     });
     System.out.println("---- TIMING STOP (SERIALIZATION - REGULAR) ----");
+  }
+
+  public void testCustomSerializationTimings() {
     System.out.println("---- TIMING START (SERIALIZATION - CUSTOM) ----");
     IntStream.range(0, 3).forEach(loop -> {
       long dataLen = 0;
@@ -182,6 +187,30 @@ public class AppTest extends TestCase {
           (stop - start) / 1000000L, iters, failures, dataLen);
     });
     System.out.println("---- TIMING STOP (SERIALIZATION - CUSTOM) ----");
+  }
+
+  public void testRegularDeserializationTimings() {
+    System.out.println("---- TIMING START (DESERIALIZATION - REGULAR) ----");
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
+    IntStream.range(0, 3).forEach(loop -> {
+      long dataLen = 0;
+      final int iters = 1000000;
+      int failures = 0;
+      final long start = System.nanoTime();
+      for (int i = 0; i < iters; i++) {
+        try {
+          @SuppressWarnings("unused")
+          final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCarWithFeatures.class);
+          dataLen += jsonCar.length();
+        } catch (JsonProcessingException e) {
+          failures++;
+        }
+      }
+      final long stop = System.nanoTime();
+      System.out.printf("loop %d: elapsed = %,d ms, iterations = %,d, failures = %,d, length = %,d bytes\n", loop + 1,
+          (stop - start) / 1000000L, iters, failures, dataLen);
+    });
+    System.out.println("---- TIMING STOP (DESERIALIZATION - REGULAR) ----");
   }
 
   public void testSerializerWithSimpleCar() throws IOException {
@@ -254,6 +283,10 @@ public class AppTest extends TestCase {
     final String carStr = "Blue Mazda";
     final AwsComplexType car = jsonMapper.readValue(jsonCar, SimpleCar.class);
 
+    assertTrue(car instanceof SimpleCar);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertNull(((SimpleCar) car).getRightHandDrive());
     assertEquals(carStr, car.toString());
   }
 
@@ -262,6 +295,10 @@ public class AppTest extends TestCase {
     final String carStr = "Blue Mazda (lhd)";
     final AwsComplexType car = jsonMapper.readValue(jsonCar, SimpleCar.class);
 
+    assertTrue(car instanceof SimpleCar);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertFalse(((SimpleCar) car).getRightHandDrive());
     assertEquals(carStr, car.toString());
   }
 
@@ -270,6 +307,10 @@ public class AppTest extends TestCase {
     final String carStr = "Blue Mazda (rhd)";
     final AwsComplexType car = jsonMapper.readValue(jsonCar, SimpleCar.class);
 
+    assertTrue(car instanceof SimpleCar);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertTrue(((SimpleCar) car).getRightHandDrive());
     assertEquals(carStr, car.toString());
   }
 
@@ -278,6 +319,13 @@ public class AppTest extends TestCase {
     final String carStr = "Blue Mazda [4 cyl petrol]";
     final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCar.class);
 
+    assertTrue(car instanceof ComplexCar);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertNull(((SimpleCar) car).getRightHandDrive());
+    assertNotNull(((ComplexCar) car).getEngine());
+    assertEquals(4, (int) ((ComplexCar) car).getEngine().getCylinders());
+    assertEquals("petrol", ((ComplexCar) car).getEngine().getFuelType());
     assertEquals(carStr, car.toString());
   }
 
@@ -286,6 +334,13 @@ public class AppTest extends TestCase {
     final String carStr = "Blue Mazda (lhd) [4 cyl petrol]";
     final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCar.class);
 
+    assertTrue(car instanceof ComplexCar);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertFalse(((SimpleCar) car).getRightHandDrive());
+    assertNotNull(((ComplexCar) car).getEngine());
+    assertEquals(4, (int) ((ComplexCar) car).getEngine().getCylinders());
+    assertEquals("petrol", ((ComplexCar) car).getEngine().getFuelType());
     assertEquals(carStr, car.toString());
   }
 
@@ -294,6 +349,50 @@ public class AppTest extends TestCase {
     final String carStr = "Blue Mazda (rhd) [4 cyl petrol]";
     final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCar.class);
 
+    assertTrue(car instanceof ComplexCar);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertTrue(((SimpleCar) car).getRightHandDrive());
+    assertNotNull(((ComplexCar) car).getEngine());
+    assertEquals(4, (int) ((ComplexCar) car).getEngine().getCylinders());
+    assertEquals("petrol", ((ComplexCar) car).getEngine().getFuelType());
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializeWithComplexCarWithNoFeatures() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"rightHandDrive\":true,\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"}}";
+    final String carStr = "Blue Mazda (rhd) [4 cyl petrol]";
+    final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCarWithFeatures.class);
+
+    assertTrue(car instanceof ComplexCarWithFeatures);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertTrue(((SimpleCar) car).getRightHandDrive());
+    assertNotNull(((ComplexCar) car).getEngine());
+    assertEquals(4, (int) ((ComplexCar) car).getEngine().getCylinders());
+    assertEquals("petrol", ((ComplexCar) car).getEngine().getFuelType());
+    assertTrue(((ComplexCarWithFeatures) car).getFeatures().isEmpty());
+    assertEquals(carStr, car.toString());
+  }
+
+  public void testDeserializeWithComplexCarWithTwoFeatures() throws IOException {
+    final String jsonCar = "{\"colour\":\"Blue\",\"type\":\"Mazda\",\"rightHandDrive\":true,\"engine\":{\"cylinders\":4,\"fuelType\":\"petrol\"},\"features\":[{\"name\":\"19 inch alloys\"},{\"name\":\"Bose sound system\",\"price\":1200.0}]}";
+    final String carStr = "Blue Mazda (rhd) [4 cyl petrol] with [19 inch alloys, Bose sound system @ 1200.0]";
+    final AwsComplexType car = jsonMapper.readValue(jsonCar, ComplexCarWithFeatures.class);
+
+    assertTrue(car instanceof ComplexCarWithFeatures);
+    assertEquals("Blue", ((SimpleCar) car).getColour());
+    assertEquals("Mazda", ((SimpleCar) car).getType());
+    assertTrue(((SimpleCar) car).getRightHandDrive());
+    assertNotNull(((ComplexCar) car).getEngine());
+    assertEquals(4, (int) ((ComplexCar) car).getEngine().getCylinders());
+    assertEquals("petrol", ((ComplexCar) car).getEngine().getFuelType());
+    assertFalse(((ComplexCarWithFeatures) car).getFeatures().isEmpty());
+    assertEquals(2, (int) ((ComplexCarWithFeatures) car).getFeatures().size());
+    assertEquals("19 inch alloys", ((ComplexCarWithFeatures) car).getFeatures().get(0).getName());
+    assertNull(((ComplexCarWithFeatures) car).getFeatures().get(0).getPrice());
+    assertEquals("Bose sound system", ((ComplexCarWithFeatures) car).getFeatures().get(1).getName());
+    assertEquals(1200.0, (double) ((ComplexCarWithFeatures) car).getFeatures().get(1).getPrice());
     assertEquals(carStr, car.toString());
   }
 

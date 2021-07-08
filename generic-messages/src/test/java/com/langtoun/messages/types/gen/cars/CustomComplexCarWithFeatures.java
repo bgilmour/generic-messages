@@ -31,7 +31,7 @@ import com.langtoun.messages.types.FieldEncodingType;
 //@Format-On
 public class CustomComplexCarWithFeatures extends CustomComplexCar {
 
-  @AwsFieldProperty(required = true, encoding = FieldEncodingType.BASE64)
+  @AwsFieldProperty(originalName = "features", index = 4, required = true, encoding = FieldEncodingType.BASE64)
   private final List<CarFeature> features = new ArrayList<>();
 
   public CustomComplexCarWithFeatures() {

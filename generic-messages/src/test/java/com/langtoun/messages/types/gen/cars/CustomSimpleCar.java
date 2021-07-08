@@ -30,13 +30,13 @@ import com.langtoun.messages.types.FieldEncodingType;
 // @Format-On
 public class CustomSimpleCar extends AwsComplexType {
 
-  @AwsFieldProperty(required = true, encoding = FieldEncodingType.JSON_URLENCODED)
+  @AwsFieldProperty(originalName = "colour", index = 0, required = true, encoding = FieldEncodingType.JSON_URLENCODED)
   private String colour;
 
-  @AwsFieldProperty(required = true, encoding = FieldEncodingType.JSON_URLENCODED)
+  @AwsFieldProperty(originalName = "type", index = 1, required = true, encoding = FieldEncodingType.JSON_URLENCODED)
   private String type;
 
-  @AwsFieldProperty(encoding = FieldEncodingType.JSON_URLENCODED)
+  @AwsFieldProperty(originalName = "rightHandDrive", index = 2, encoding = FieldEncodingType.JSON_URLENCODED)
   private Boolean rightHandDrive;
 
   public CustomSimpleCar() {

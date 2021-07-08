@@ -38,12 +38,12 @@ public class AwsComplexTypeJsonSerializer extends JsonSerializer<AwsComplexType>
         serializeComplexType(value, typeDefinition, gen);
       } else {
         throw new IllegalArgumentException(
-            String.format("the @TypeDefinition annotation must not specify custom encoding parameters for type[%s]",
+            String.format("the @AwsTypeDefinition annotation must not specify custom encoding parameters for type[%s]",
                 value.getClass().getTypeName()));
       }
     } else {
       throw new IllegalArgumentException(
-          String.format("type[%s] must be annotated with @TypeDefinition", value.getClass().getTypeName()));
+          String.format("type[%s] must be annotated with @AwsTypeDefinition", value.getClass().getTypeName()));
     }
   }
 

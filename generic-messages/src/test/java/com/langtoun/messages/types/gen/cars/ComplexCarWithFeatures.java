@@ -26,7 +26,7 @@ import com.langtoun.messages.generic.AwsComplexTypeJsonSerializer;
 // @Format-On
 public class ComplexCarWithFeatures extends ComplexCar {
 
-  @AwsFieldProperty(required = true)
+  @AwsFieldProperty(originalName = "features", index = 4, required = true)
   private final List<CarFeature> features = new ArrayList<>();
 
   public ComplexCarWithFeatures() {
@@ -49,7 +49,7 @@ public class ComplexCarWithFeatures extends ComplexCar {
 
   @Override
   public String toString() {
-    return super.toString() + " with " + features;
+    return super.toString() + (!features.isEmpty() ? " with " + features : "");
   }
 
 }
